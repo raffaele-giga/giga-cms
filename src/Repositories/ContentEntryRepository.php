@@ -258,6 +258,30 @@ class ContentEntryRepository
         });
     }
 
+    /**
+     * Frammento SQL "pubblico effettivo" (Content Engine, Content Entry:
+     * "Pubblico effettivo = status.is_public AND published_at <= NOW() AND
+     * (published_until IS NULL OR published_until > NOW())"). Riusabile da
+     * qualunque query che abbia già joinato content_statuses — buildWhere()
+     * lo usa per il filtro 'effectively_public', futuri metodi di query
+     * possono chiamarlo direttamente con alias diversi.
+     *
+     * Unica fonte della regola lato SQL. ContentEntryService::isEffectivelyPublic()
+     * è la controparte in PHP per un'entry già caricata: stessa regola,
+     * ma SQL e PHP sono due runtime diversi — non è possibile eseguire un
+     * frammento WHERE come funzione PHP, quindi le due espressioni non
+     * possono condividere una sola implementazione letterale. Sono tenute
+     * allineate da smoke_test_lifecycle.php, che verifica che il verdetto
+     * PHP di isEffectivelyPublic() coincida sempre con la presenza/assenza
+     * della riga in una query filtrata con questa stessa condizione.
+     */
+    public function effectivePublicCondition(string $entryAlias = 'e', string $statusAlias = 'cs'): string
+    {
+        return "{$statusAlias}.is_public = 1"
+            . " AND {$entryAlias}.published_at IS NOT NULL AND {$entryAlias}.published_at <= NOW()"
+            . " AND ({$entryAlias}.published_until IS NULL OR {$entryAlias}.published_until > NOW())";
+    }
+
     private function filterFields(array $data): array
     {
         $allowed = [
@@ -285,6 +309,9 @@ class ContentEntryRepository
         }
         if (!empty($filters['is_featured'])) {
             $conditions[] = 'e.is_featured = 1';
+        }
+        if (!empty($filters['effectively_public'])) {
+            $conditions[] = $this->effectivePublicCondition();
         }
 
         return ['WHERE ' . implode(' AND ', $conditions), $params];

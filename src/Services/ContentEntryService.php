@@ -125,6 +125,64 @@ class ContentEntryService
         $this->entryRepository->restore($id);
     }
 
+    /**
+     * Niente stato "scheduled" separato: la programmazione è status=published
+     * con published_at nel futuro (Content Engine, Content Entry). Se
+     * $publishedAt è null usa NOW() — pubblicazione immediata.
+     */
+    public function publish(int $id, ?string $publishedAt = null): void
+    {
+        $this->getById($id);
+        $status = $this->resolveStatusBySystemKey('published');
+
+        $this->entryRepository->update($id, [
+            'status_id'    => $status['id'],
+            'published_at' => $publishedAt ?? date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /** Torna a draft. Non tocca published_at/published_until: restano per riferimento/riuso a una ripubblicazione. */
+    public function unpublish(int $id): void
+    {
+        $this->getById($id);
+        $status = $this->resolveStatusBySystemKey('draft');
+        $this->entryRepository->update($id, ['status_id' => $status['id']]);
+    }
+
+    public function archive(int $id): void
+    {
+        $this->getById($id);
+        $status = $this->resolveStatusBySystemKey('archived');
+        $this->entryRepository->update($id, ['status_id' => $status['id']]);
+    }
+
+    /**
+     * Pubblico effettivo per un'entry già caricata (findById()/findPaginated(),
+     * che selezionano già status_is_public/published_at/published_until —
+     * nessuna query aggiuntiva qui). Stessa regola di
+     * ContentEntryRepository::effectivePublicCondition(), espressa in PHP:
+     * le due non condividono un'implementazione letterale (SQL e PHP sono
+     * runtime diversi) ma sono verificate allineate da
+     * dev/bin/smoke_test_lifecycle.php — se cambi questa, cambia anche quella.
+     */
+    public function isEffectivelyPublic(array $entry): bool
+    {
+        if (empty($entry['status_is_public']) || empty($entry['published_at'])) {
+            return false;
+        }
+
+        $now = new \DateTimeImmutable();
+
+        if (new \DateTimeImmutable($entry['published_at']) > $now) {
+            return false;
+        }
+        if (!empty($entry['published_until']) && new \DateTimeImmutable($entry['published_until']) <= $now) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function getValues(int $entryId): array
     {
         return $this->entryRepository->getValues($entryId);
@@ -318,11 +376,15 @@ class ContentEntryService
             return (int) $data['status_id'];
         }
 
-        $default = $this->statusRepository->findBySystemKey('draft');
-        if (!$default) {
-            throw new \RuntimeException("Stato di sistema 'draft' non trovato.");
-        }
+        return (int) $this->resolveStatusBySystemKey('draft')['id'];
+    }
 
-        return (int) $default['id'];
+    private function resolveStatusBySystemKey(string $systemKey): array
+    {
+        $status = $this->statusRepository->findBySystemKey($systemKey);
+        if (!$status) {
+            throw new \RuntimeException("Stato di sistema '{$systemKey}' non trovato.");
+        }
+        return $status;
     }
 }
