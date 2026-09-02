@@ -12,20 +12,14 @@ namespace Giga\Cms\FieldTypes;
  *   - entry                       -> value_entry_id (FK, cardinalità 1,
  *                                    stessa colonna/protezione di
  *                                    RelationFieldType)
+ *   - file                        -> value_media_id (FK, cardinalità 1,
+ *                                    stessa colonna/protezione di
+ *                                    MediaFieldType — sbloccato ora che
+ *                                    Media/Gallery esiste: prima la FK su
+ *                                    value_media_id non c'era ancora)
  *   - external/email/phone/anchor -> value_text (singole stringhe, nessuna
  *                                    struttura composita: non serve
  *                                    nemmeno il JSON)
- *   - file                        -> value_media_id, MA non ancora
- *                                    supportato qui: richiede l'Asset
- *                                    Library (Media/Gallery), che non
- *                                    esiste ancora e quindi non ha ancora
- *                                    una FK su value_media_id. validate()
- *                                    rifiuta esplicitamente questo kind
- *                                    invece di scriverlo senza protezione
- *                                    — si sblocca quando Media/Gallery
- *                                    arriva, stesso pattern già usato per
- *                                    la FK di field_id (differita fino a
- *                                    quando fields è esistita).
  *
  * value_variant (content_entry_values) è il discriminatore: dice quale
  * kind è attivo per la riga, dato che la colonna valorizzata cambia in
@@ -35,7 +29,7 @@ namespace Giga\Cms\FieldTypes;
  */
 class LinkFieldType implements FieldTypeInterface
 {
-    private const KNOWN_KINDS = ['entry', 'external', 'email', 'phone', 'anchor', 'file'];
+    private const KNOWN_KINDS = ['entry', 'file', 'external', 'email', 'phone', 'anchor'];
 
     public function key(): string
     {
@@ -57,16 +51,11 @@ class LinkFieldType implements FieldTypeInterface
         if (!in_array($kind, self::KNOWN_KINDS, true)) {
             throw new \InvalidArgumentException('kind non valido, atteso uno tra: ' . implode(', ', self::KNOWN_KINDS));
         }
-        if ($kind === 'file') {
-            throw new \RuntimeException(
-                "kind 'file' non ancora supportato: richiede l'Asset Library (Media/Gallery), non ancora costruita."
-            );
-        }
         if (!isset($rawValue['value']) || $rawValue['value'] === '') {
             throw new \InvalidArgumentException('value è obbligatorio.');
         }
-        if ($kind === 'entry' && (!is_numeric($rawValue['value']) || (int) $rawValue['value'] <= 0)) {
-            throw new \InvalidArgumentException("Per kind 'entry', value deve essere un id di entry positivo.");
+        if (($kind === 'entry' || $kind === 'file') && (!is_numeric($rawValue['value']) || (int) $rawValue['value'] <= 0)) {
+            throw new \InvalidArgumentException("Per kind '{$kind}', value deve essere un id positivo.");
         }
     }
 
@@ -74,11 +63,11 @@ class LinkFieldType implements FieldTypeInterface
     {
         $kind = $rawValue['kind'];
 
-        if ($kind === 'entry') {
-            return ['value_variant' => 'entry', 'value_entry_id' => (int) $rawValue['value']];
-        }
-
-        return ['value_variant' => $kind, 'value_text' => (string) $rawValue['value']];
+        return match ($kind) {
+            'entry' => ['value_variant' => 'entry', 'value_entry_id' => (int) $rawValue['value']],
+            'file'  => ['value_variant' => 'file', 'value_media_id' => (int) $rawValue['value']],
+            default => ['value_variant' => $kind, 'value_text' => (string) $rawValue['value']],
+        };
     }
 
     public function render(array $valueRow, array $fieldConfig): mixed
@@ -88,9 +77,12 @@ class LinkFieldType implements FieldTypeInterface
             return null;
         }
 
-        return [
-            'kind'  => $kind,
-            'value' => $kind === 'entry' ? (int) $valueRow['value_entry_id'] : $valueRow['value_text'],
-        ];
+        $value = match ($kind) {
+            'entry' => (int) $valueRow['value_entry_id'],
+            'file'  => (int) $valueRow['value_media_id'],
+            default => $valueRow['value_text'],
+        };
+
+        return ['kind' => $kind, 'value' => $value];
     }
 }

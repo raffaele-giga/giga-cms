@@ -126,6 +126,42 @@ class ContentEntryRepository
         });
     }
 
+    /** Gallery di un field su un'entry, ordinata per sort_order. */
+    public function getGallery(int $entryId, int $fieldId): array
+    {
+        return $this->db->fetchAll(
+            "SELECT cem.*, m.path, m.filename, m.mime_type, m.kind, m.is_public, m.alt, m.title AS media_title
+             FROM content_entry_media cem
+             JOIN media m ON m.id = cem.media_id
+             WHERE cem.entry_id = ? AND cem.field_id = ?
+             ORDER BY cem.sort_order ASC",
+            [$entryId, $fieldId]
+        );
+    }
+
+    /**
+     * Sostituisce l'intera gallery di un field su un'entry (delete+insert,
+     * stesso pattern di replaceValues). $items: array di
+     * ['media_id' => int, 'caption' => ?string], l'ordine nell'array
+     * diventa il sort_order.
+     */
+    public function replaceGallery(int $entryId, int $fieldId, array $items): void
+    {
+        $this->db->transaction(function () use ($entryId, $fieldId, $items) {
+            $this->db->execute(
+                "DELETE FROM content_entry_media WHERE entry_id = ? AND field_id = ?",
+                [$entryId, $fieldId]
+            );
+            foreach (array_values($items) as $sortOrder => $item) {
+                $this->db->execute(
+                    "INSERT INTO content_entry_media (entry_id, field_id, media_id, sort_order, caption)
+                     VALUES (?, ?, ?, ?, ?)",
+                    [$entryId, $fieldId, (int) $item['media_id'], $sortOrder, $item['caption'] ?? null]
+                );
+            }
+        });
+    }
+
     private function filterFields(array $data): array
     {
         $allowed = [

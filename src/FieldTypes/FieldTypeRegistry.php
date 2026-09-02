@@ -33,12 +33,16 @@ class FieldTypeRegistry
     }
 
     /**
-     * Tipi coperti in questo giro: quelli che non richiedono Asset Library
-     * (immagine/media resta fuori) né una relazione a cardinalità multipla
-     * (repeater resta fuori — content_entry_values copre solo cardinalità 1,
-     * Decisione #1). Si registreranno quando i rispettivi sottosistemi
-     * (Media/Gallery, Repeater) saranno pronti — non richiedono modifiche
-     * qui oltre ad aggiungere la relativa entry a questa lista.
+     * 'repeater' resta fuori: content_entry_values copre solo cardinalità 1
+     * (Decisione #1), un repeater è una struttura a cardinalità multipla
+     * che non fa parte del contratto FieldTypeInterface (persist() produce
+     * una sola riga). Si registrerà quando quel meccanismo sarà pronto —
+     * non richiede modifiche qui oltre ad aggiungere la relativa entry.
+     *
+     * 'gallery' non sarà mai un FieldTypeInterface: è una struttura a
+     * cardinalità multipla su content_entry_media (tabella dedicata),
+     * gestita da ContentEntryService::getGallery()/replaceGallery(), non
+     * da persist() su una colonna di content_entry_values.
      *
      * @return FieldTypeInterface[]
      */
@@ -54,6 +58,7 @@ class FieldTypeRegistry
             new SelectFieldType(),
             new RelationFieldType(),
             new LinkFieldType(),
+            new MediaFieldType(),
         ];
     }
 }

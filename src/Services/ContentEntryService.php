@@ -183,6 +183,40 @@ class ContentEntryService
         }
     }
 
+    public function getGallery(int $entryId, int $fieldId): array
+    {
+        return $this->entryRepository->getGallery($entryId, $fieldId);
+    }
+
+    /**
+     * Sostituisce l'intera gallery di un field su un'entry. Il field deve
+     * essere dichiarato type='gallery' — distinto da 'media' (riferimento
+     * singolo, cardinalità 1 via value_media_id/MediaFieldType). 'gallery'
+     * non è un Field Type nel registry: non produce una riga di
+     * content_entry_values (persist() lavora su una colonna, la gallery è
+     * una struttura a cardinalità multipla su una tabella dedicata,
+     * content_entry_media — Decisione #1).
+     *
+     * L'esistenza di ogni media_id non è verificata qui: la FK di
+     * content_entry_media.media_id lo garantisce già a livello DB.
+     *
+     * @param array<int, array{media_id:int, caption?:?string}> $items
+     */
+    public function replaceGallery(int $entryId, int $fieldId, array $items): void
+    {
+        $field = $this->fieldRepository->findById($fieldId);
+        if (!$field) {
+            throw new \RuntimeException("Field id={$fieldId} non trovato.");
+        }
+        if ($field['type'] !== 'gallery') {
+            throw new \RuntimeException(
+                "Il field '{$field['key']}' non è di tipo 'gallery' (è '{$field['type']}')."
+            );
+        }
+
+        $this->entryRepository->replaceGallery($entryId, $fieldId, $items);
+    }
+
     private function resolveContentType(array $data): array
     {
         if (!empty($data['content_type_id'])) {

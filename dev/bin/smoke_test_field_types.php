@@ -24,7 +24,7 @@ $typeRepo  = new ContentTypeRepository();
 $service   = new ContentEntryService();
 
 line('Registry: tipi registrati e uses_value_json');
-foreach (['text', 'richtext', 'number', 'date', 'datetime', 'boolean', 'select', 'relation', 'link'] as $key) {
+foreach (['text', 'richtext', 'number', 'date', 'datetime', 'boolean', 'select', 'relation', 'link', 'media'] as $key) {
     if (!$registry->has($key)) {
         echo "  ERRORE: '{$key}' non registrato!\n";
         exit(1);
@@ -32,11 +32,11 @@ foreach (['text', 'richtext', 'number', 'date', 'datetime', 'boolean', 'select',
     $schema = $registry->get($key)->schema();
     printf("  %-10s uses_value_json=%s\n", $key, $schema['uses_value_json'] ? 'true' : 'false');
 }
-if ($registry->has('media')) {
-    echo "  ERRORE: 'media' non dovrebbe essere registrato in questo giro!\n";
+if ($registry->has('repeater')) {
+    echo "  ERRORE: 'repeater' non dovrebbe essere registrato in questo giro!\n";
     exit(1);
 }
-echo "  conferma: 'media' correttamente NON registrato (Asset Library non ancora costruita)\n";
+echo "  conferma: 'repeater' correttamente NON registrato (cardinalità multipla, fuori dal contratto FieldTypeInterface)\n";
 
 line('TextFieldType: validate + persist');
 $text = $registry->get('text');
@@ -95,13 +95,13 @@ if (!array_key_exists('value_entry_id', $persistedEntry) || array_key_exists('va
 }
 echo '  render: ' . json_encode($link->render($persistedEntry, [])) . "\n";
 
-line("LinkFieldType: kind 'file' -> deve fallire esplicitamente (Asset Library non ancora costruita)");
-try {
-    $link->validate(['kind' => 'file', 'value' => 1], []);
-    echo "  ERRORE: doveva rifiutare kind='file'!\n";
+line("LinkFieldType: kind 'file' -> value_media_id (unità, senza toccare il DB — copertura end-to-end con FK reale in smoke_test_media.php)");
+$link->validate(['kind' => 'file', 'value' => 1], []);
+$persistedFile = $link->persist(['kind' => 'file', 'value' => 1], []);
+echo '  persist: ' . json_encode($persistedFile) . "\n";
+if (!array_key_exists('value_media_id', $persistedFile) || array_key_exists('value_json', $persistedFile)) {
+    echo "  ERRORE: kind 'file' deve usare value_media_id, mai value_json!\n";
     exit(1);
-} catch (\RuntimeException $e) {
-    echo '  rifiutato correttamente: ' . $e->getMessage() . "\n";
 }
 
 line("LinkFieldType: kind non valido -> deve fallire");
