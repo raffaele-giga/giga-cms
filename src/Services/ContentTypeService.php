@@ -6,6 +6,7 @@ use Giga\Core\Database;
 use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\FieldGroupRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
+use Giga\Cms\Repositories\ContentTypePermalinkPatternRepository;
 
 /**
  * Permission-agnostic per design: nessun metodo qui chiama PermissionService
@@ -36,13 +37,15 @@ class ContentTypeService
     private ContentTypeRepository $typeRepository;
     private FieldGroupRepository $fieldGroupRepository;
     private TaxonomyRepository $taxonomyRepository;
+    private ContentTypePermalinkPatternRepository $permalinkPatternRepository;
 
     public function __construct()
     {
-        $this->db                   = Database::getInstance();
-        $this->typeRepository       = new ContentTypeRepository();
-        $this->fieldGroupRepository = new FieldGroupRepository();
-        $this->taxonomyRepository   = new TaxonomyRepository();
+        $this->db                        = Database::getInstance();
+        $this->typeRepository            = new ContentTypeRepository();
+        $this->fieldGroupRepository      = new FieldGroupRepository();
+        $this->taxonomyRepository        = new TaxonomyRepository();
+        $this->permalinkPatternRepository = new ContentTypePermalinkPatternRepository();
     }
 
     public function getById(int $id): array
@@ -181,6 +184,38 @@ class ContentTypeService
         }
 
         $this->typeRepository->syncTaxonomies($id, array_map('intval', $taxonomyIds));
+    }
+
+    /**
+     * Override del permalink pattern per lingua (Decisione #2: "il
+     * permalink pattern è definito per Content Type e può essere
+     * sovrascritto per lingua"). Senza override configurato,
+     * ContentEntryTranslationService::buildPermalink() risolve sul
+     * pattern di default di questo Content Type (getById()['permalink_pattern']),
+     * poi sul fallback calcolato /{slug}/{slug}.
+     */
+    public function getPermalinkPatternOverrides(int $id): array
+    {
+        $this->getById($id);
+        return $this->permalinkPatternRepository->findByContentType($id);
+    }
+
+    public function setPermalinkPatternOverride(int $id, int $languageId, string $pattern): void
+    {
+        $this->getById($id);
+
+        $pattern = trim($pattern);
+        if ($pattern === '') {
+            throw new \RuntimeException('Il pattern non può essere vuoto.');
+        }
+
+        $this->permalinkPatternRepository->set($id, $languageId, $pattern);
+    }
+
+    public function removePermalinkPatternOverride(int $id, int $languageId): void
+    {
+        $this->getById($id);
+        $this->permalinkPatternRepository->remove($id, $languageId);
     }
 
     /**

@@ -206,15 +206,23 @@ class ContentEntryService
     public function replaceValues(int $entryId, array $rows): void
     {
         foreach ($rows as $row) {
-            $this->assertValueJsonAllowed($row);
+            $this->assertRowValid($row);
         }
 
         $this->entryRepository->replaceValues($entryId, $rows);
     }
 
-    private function assertValueJsonAllowed(array $row): void
+    /**
+     * Un solo lookup del field per riga, usato da entrambi i controlli
+     * (value_json ammesso, coerenza translatable/language_id) — evita due
+     * query separate e la duplicazione del "field non trovato".
+     */
+    private function assertRowValid(array $row): void
     {
-        if (!array_key_exists('value_json', $row) || $row['value_json'] === null) {
+        $touchesValueJson = array_key_exists('value_json', $row) && $row['value_json'] !== null;
+        $hasLanguage      = array_key_exists('language_id', $row) && $row['language_id'] !== null;
+
+        if (!$touchesValueJson && !array_key_exists('field_id', $row)) {
             return;
         }
         if (!array_key_exists('field_id', $row)) {
@@ -227,6 +235,28 @@ class ContentEntryService
             throw new \RuntimeException("Field id={$fieldId} non trovato.");
         }
 
+        if ($touchesValueJson) {
+            $this->assertValueJsonAllowed($field);
+        }
+
+        // Modello multilingua: language_id è il discriminatore per i valori
+        // traducibili — deve essere presente se e solo se il field è
+        // translatable (altrimenti un field globale finirebbe duplicato per
+        // lingua, o uno translatable perderebbe la distinzione per lingua).
+        if ($field['translatable'] && !$hasLanguage) {
+            throw new \RuntimeException(
+                "Il field '{$field['key']}' è translatable: language_id è obbligatorio su questa riga."
+            );
+        }
+        if (!$field['translatable'] && $hasLanguage) {
+            throw new \RuntimeException(
+                "Il field '{$field['key']}' non è translatable: language_id non è ammesso su questa riga."
+            );
+        }
+    }
+
+    private function assertValueJsonAllowed(array $field): void
+    {
         if (!$this->fieldTypeRegistry->has($field['type'])) {
             throw new \RuntimeException(
                 "Scrittura su value_json non consentita per il field '{$field['key']}' (type "
