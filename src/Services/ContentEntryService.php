@@ -6,6 +6,7 @@ use Giga\Cms\Repositories\ContentEntryRepository;
 use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\ContentStatusRepository;
 use Giga\Cms\Repositories\FieldRepository;
+use Giga\Cms\Repositories\TaxonomyTermRepository;
 use Giga\Cms\FieldTypes\FieldTypeRegistry;
 
 /**
@@ -23,6 +24,7 @@ class ContentEntryService
     private ContentTypeRepository $typeRepository;
     private ContentStatusRepository $statusRepository;
     private FieldRepository $fieldRepository;
+    private TaxonomyTermRepository $termRepository;
     private FieldTypeRegistry $fieldTypeRegistry;
 
     public function __construct()
@@ -31,6 +33,7 @@ class ContentEntryService
         $this->typeRepository   = new ContentTypeRepository();
         $this->statusRepository = new ContentStatusRepository();
         $this->fieldRepository  = new FieldRepository();
+        $this->termRepository   = new TaxonomyTermRepository();
         $this->fieldTypeRegistry = new FieldTypeRegistry();
     }
 
@@ -215,6 +218,46 @@ class ContentEntryService
         }
 
         $this->entryRepository->replaceGallery($entryId, $fieldId, $items);
+    }
+
+    public function getTerms(int $entryId, int $taxonomyId): array
+    {
+        return $this->entryRepository->getTerms($entryId, $taxonomyId);
+    }
+
+    /**
+     * Sostituisce i termini di UNA tassonomia sull'entry (le altre
+     * tassonomie assegnate alla stessa entry non vengono toccate). Valida
+     * che la tassonomia sia effettivamente assegnata al Content Type
+     * dell'entry (content_type_taxonomies) e che ogni termine appartenga
+     * a quella tassonomia — un'entry non può avere un termine "Manufacturing"
+     * (Industry) se il suo Content Type non usa la tassonomia Industry.
+     */
+    public function syncTerms(int $entryId, int $taxonomyId, array $termIds): void
+    {
+        $entry = $this->getById($entryId);
+
+        $assignedTaxonomyIds = array_map(
+            fn(array $t) => (int) $t['id'],
+            $this->typeRepository->getTaxonomies((int) $entry['content_type_id'])
+        );
+        if (!in_array($taxonomyId, $assignedTaxonomyIds, true)) {
+            throw new \RuntimeException(
+                "La tassonomia id={$taxonomyId} non è assegnata al Content Type di questa entry."
+            );
+        }
+
+        foreach ($termIds as $termId) {
+            $term = $this->termRepository->findById((int) $termId);
+            if (!$term) {
+                throw new \RuntimeException("Termine id={$termId} non trovato.");
+            }
+            if ((int) $term['taxonomy_id'] !== $taxonomyId) {
+                throw new \RuntimeException("Il termine id={$termId} non appartiene alla tassonomia id={$taxonomyId}.");
+            }
+        }
+
+        $this->entryRepository->replaceTerms($entryId, $taxonomyId, array_map('intval', $termIds));
     }
 
     private function resolveContentType(array $data): array

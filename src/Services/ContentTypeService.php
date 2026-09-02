@@ -5,6 +5,7 @@ namespace Giga\Cms\Services;
 use Giga\Core\Database;
 use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\FieldGroupRepository;
+use Giga\Cms\Repositories\TaxonomyRepository;
 
 /**
  * Permission-agnostic per design: nessun metodo qui chiama PermissionService
@@ -34,12 +35,14 @@ class ContentTypeService
     private Database $db;
     private ContentTypeRepository $typeRepository;
     private FieldGroupRepository $fieldGroupRepository;
+    private TaxonomyRepository $taxonomyRepository;
 
     public function __construct()
     {
         $this->db                   = Database::getInstance();
         $this->typeRepository       = new ContentTypeRepository();
         $this->fieldGroupRepository = new FieldGroupRepository();
+        $this->taxonomyRepository   = new TaxonomyRepository();
     }
 
     public function getById(int $id): array
@@ -156,6 +159,28 @@ class ContentTypeService
         }
 
         $this->typeRepository->syncFieldGroups($id, array_map('intval', $fieldGroupIds));
+    }
+
+    public function getTaxonomies(int $id): array
+    {
+        return $this->typeRepository->getTaxonomies($id);
+    }
+
+    /**
+     * Sostituisce l'intera assegnazione di tassonomie del Content Type.
+     * $taxonomyIds nell'ordine di visualizzazione desiderato.
+     */
+    public function syncTaxonomies(int $id, array $taxonomyIds): void
+    {
+        $this->getById($id);
+
+        foreach ($taxonomyIds as $taxonomyId) {
+            if (!$this->taxonomyRepository->findById((int) $taxonomyId)) {
+                throw new \RuntimeException("Tassonomia id={$taxonomyId} non trovata.");
+            }
+        }
+
+        $this->typeRepository->syncTaxonomies($id, array_map('intval', $taxonomyIds));
     }
 
     /**

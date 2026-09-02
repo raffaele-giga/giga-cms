@@ -162,6 +162,48 @@ class ContentEntryRepository
         });
     }
 
+    /**
+     * Termini di una tassonomia assegnati all'entry. Niente field_id: la
+     * tassonomia non è mediata dal sistema Field/Field Group (Contratto
+     * Theme↔CMS, $project->taxonomy('industry')) — lo scoping è per
+     * taxonomy_id, non per field.
+     */
+    public function getTerms(int $entryId, int $taxonomyId): array
+    {
+        return $this->db->fetchAll(
+            "SELECT tt.*
+             FROM content_entry_terms cet
+             JOIN taxonomy_terms tt ON tt.id = cet.term_id
+             WHERE cet.entry_id = ? AND tt.taxonomy_id = ?
+             ORDER BY tt.sort_order ASC, tt.label ASC",
+            [$entryId, $taxonomyId]
+        );
+    }
+
+    /**
+     * Sostituisce l'assegnazione di UNA tassonomia sull'entry (delete+insert
+     * scoped per taxonomy_id, stesso principio di replaceGallery scoped per
+     * field_id): le assegnazioni di altre tassonomie sulla stessa entry non
+     * vengono toccate.
+     */
+    public function replaceTerms(int $entryId, int $taxonomyId, array $termIds): void
+    {
+        $this->db->transaction(function () use ($entryId, $taxonomyId, $termIds) {
+            $this->db->execute(
+                "DELETE cet FROM content_entry_terms cet
+                 JOIN taxonomy_terms tt ON tt.id = cet.term_id
+                 WHERE cet.entry_id = ? AND tt.taxonomy_id = ?",
+                [$entryId, $taxonomyId]
+            );
+            foreach ($termIds as $termId) {
+                $this->db->execute(
+                    "INSERT INTO content_entry_terms (entry_id, term_id) VALUES (?, ?)",
+                    [$entryId, (int) $termId]
+                );
+            }
+        });
+    }
+
     private function filterFields(array $data): array
     {
         $allowed = [

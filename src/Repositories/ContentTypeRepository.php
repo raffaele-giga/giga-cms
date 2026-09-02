@@ -101,6 +101,40 @@ class ContentTypeRepository
         });
     }
 
+    /** Tassonomie assegnate, ordinate per sort_order dell'associazione (pivot M:N). */
+    public function getTaxonomies(int $contentTypeId): array
+    {
+        return $this->db->fetchAll(
+            "SELECT t.*, ctt.sort_order
+             FROM content_type_taxonomies ctt
+             JOIN taxonomies t ON t.id = ctt.taxonomy_id
+             WHERE ctt.content_type_id = ?
+             ORDER BY ctt.sort_order ASC",
+            [$contentTypeId]
+        );
+    }
+
+    /**
+     * Sostituisce l'intera assegnazione di tassonomie del Content Type
+     * (delete+insert, stesso pattern di syncFieldGroups). L'ordine di
+     * $taxonomyIds diventa il sort_order.
+     */
+    public function syncTaxonomies(int $contentTypeId, array $taxonomyIds): void
+    {
+        $this->db->transaction(function () use ($contentTypeId, $taxonomyIds) {
+            $this->db->execute(
+                "DELETE FROM content_type_taxonomies WHERE content_type_id = ?",
+                [$contentTypeId]
+            );
+            foreach (array_values($taxonomyIds) as $sortOrder => $taxonomyId) {
+                $this->db->execute(
+                    "INSERT INTO content_type_taxonomies (content_type_id, taxonomy_id, sort_order) VALUES (?, ?, ?)",
+                    [$contentTypeId, $taxonomyId, $sortOrder]
+                );
+            }
+        });
+    }
+
     private function filterFields(array $data): array
     {
         $allowed = [
