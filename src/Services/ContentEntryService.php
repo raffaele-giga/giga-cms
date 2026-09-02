@@ -260,6 +260,41 @@ class ContentEntryService
         $this->entryRepository->replaceTerms($entryId, $taxonomyId, array_map('intval', $termIds));
     }
 
+    /** Relazioni uscenti di un tipo da un'entry. */
+    public function getRelations(int $entryId, string $relationType): array
+    {
+        return $this->entryRepository->getRelations($entryId, $relationType);
+    }
+
+    /**
+     * Relazione inversa (Invariante #8) — chi ha una relazione $relationType
+     * verso questa entry. Sempre una query, mai una riga da sincronizzare.
+     */
+    public function getInverseRelations(int $entryId, string $relationType): array
+    {
+        return $this->entryRepository->getInverseRelations($entryId, $relationType);
+    }
+
+    /**
+     * Sostituisce le relazioni uscenti di UN relation_type dall'entry (gli
+     * altri relation_type sulla stessa entry non vengono toccati).
+     * L'esistenza di ogni entry correlata non è verificata qui: la FK di
+     * content_entry_relations.related_entry_id lo garantisce già a livello
+     * DB. relation_type non è validato contro un vocabolario: è una
+     * stringa libera (Content Engine, "Relazioni") — nessuna tabella di
+     * definizione dei tipi di relazione esiste nello schema.
+     */
+    public function replaceRelations(int $entryId, string $relationType, array $relatedEntryIds): void
+    {
+        $this->getById($entryId);
+
+        if (in_array($entryId, array_map('intval', $relatedEntryIds), true)) {
+            throw new \RuntimeException("Un'entry non può avere una relazione verso se stessa.");
+        }
+
+        $this->entryRepository->replaceRelations($entryId, $relationType, array_map('intval', $relatedEntryIds));
+    }
+
     private function resolveContentType(array $data): array
     {
         if (!empty($data['content_type_id'])) {

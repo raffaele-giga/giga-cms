@@ -204,6 +204,60 @@ class ContentEntryRepository
         });
     }
 
+    /** Relazioni uscenti di un tipo da un'entry ("cosa punta questa entry"). */
+    public function getRelations(int $entryId, string $relationType): array
+    {
+        return $this->db->fetchAll(
+            "SELECT e.*, cer.sort_order
+             FROM content_entry_relations cer
+             JOIN content_entries e ON e.id = cer.related_entry_id
+             WHERE cer.entry_id = ? AND cer.relation_type = ? AND e.deleted_at IS NULL
+             ORDER BY cer.sort_order ASC",
+            [$entryId, $relationType]
+        );
+    }
+
+    /**
+     * Relazione inversa ("chi punta a questa entry") — Invariante #8: è
+     * sempre una query sulla stessa tabella, mai una seconda riga
+     * sincronizzata a mano.
+     */
+    public function getInverseRelations(int $entryId, string $relationType): array
+    {
+        return $this->db->fetchAll(
+            "SELECT e.*, cer.sort_order
+             FROM content_entry_relations cer
+             JOIN content_entries e ON e.id = cer.entry_id
+             WHERE cer.related_entry_id = ? AND cer.relation_type = ? AND e.deleted_at IS NULL
+             ORDER BY cer.sort_order ASC",
+            [$entryId, $relationType]
+        );
+    }
+
+    /**
+     * Sostituisce le relazioni uscenti di UN relation_type dall'entry
+     * (delete+insert scoped per relation_type, stesso principio di
+     * replaceTerms scoped per taxonomy_id): altri relation_type sulla
+     * stessa entry non vengono toccati. L'ordine di $relatedEntryIds
+     * diventa il sort_order.
+     */
+    public function replaceRelations(int $entryId, string $relationType, array $relatedEntryIds): void
+    {
+        $this->db->transaction(function () use ($entryId, $relationType, $relatedEntryIds) {
+            $this->db->execute(
+                "DELETE FROM content_entry_relations WHERE entry_id = ? AND relation_type = ?",
+                [$entryId, $relationType]
+            );
+            foreach (array_values($relatedEntryIds) as $sortOrder => $relatedEntryId) {
+                $this->db->execute(
+                    "INSERT INTO content_entry_relations (entry_id, related_entry_id, relation_type, sort_order)
+                     VALUES (?, ?, ?, ?)",
+                    [$entryId, (int) $relatedEntryId, $relationType, $sortOrder]
+                );
+            }
+        });
+    }
+
     private function filterFields(array $data): array
     {
         $allowed = [
