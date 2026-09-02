@@ -10,6 +10,7 @@
 require dirname(__DIR__) . '/bootstrap.php';
 
 use Giga\Cms\Repositories\ContentTypeRepository;
+use Giga\Cms\Repositories\FieldRepository;
 use Giga\Cms\Services\ContentEntryService;
 
 function line(string $label): void
@@ -17,8 +18,14 @@ function line(string $label): void
     echo "\n--- {$label} ---\n";
 }
 
-$typeRepo = new ContentTypeRepository();
-$service  = new ContentEntryService();
+$typeRepo  = new ContentTypeRepository();
+$fieldRepo = new FieldRepository();
+$service   = new ContentEntryService();
+
+// content_entry_values.field_id ha una FK verso fields: servono field_id reali.
+$textFieldId   = $fieldRepo->create(['key' => 'svc_smoke_text', 'label' => 'Testo', 'type' => 'text']);
+$numberFieldId = $fieldRepo->create(['key' => 'svc_smoke_number', 'label' => 'Numero', 'type' => 'number']);
+$otherFieldId  = $fieldRepo->create(['key' => 'svc_smoke_other', 'label' => 'Altro', 'type' => 'text']);
 
 $projectType = $typeRepo->findBySlug('projects');
 if (!$projectType) {
@@ -37,15 +44,15 @@ if ($entry['status_key'] !== 'draft') {
 
 line('replaceValues() con value_text/value_number -> deve passare');
 $service->replaceValues($entryId, [
-    ['field_id' => 201, 'value_text' => 'Cliente di prova'],
-    ['field_id' => 202, 'value_number' => 42],
+    ['field_id' => $textFieldId, 'value_text' => 'Cliente di prova'],
+    ['field_id' => $numberFieldId, 'value_number' => 42],
 ]);
 echo '  values: ' . json_encode($service->getValues($entryId), JSON_UNESCAPED_SLASHES) . "\n";
 
 line('replaceValues() con value_json valorizzato -> deve lanciare eccezione');
 try {
     $service->replaceValues($entryId, [
-        ['field_id' => 203, 'value_json' => json_encode(['a' => 1])],
+        ['field_id' => $otherFieldId, 'value_json' => json_encode(['a' => 1])],
     ]);
     echo "  ERRORE: nessuna eccezione lanciata, il blocco non funziona!\n";
     exit(1);
@@ -63,7 +70,7 @@ if (count($values) !== 2) {
 
 line('replaceValues() con value_json = null esplicito -> deve passare (chiave presente ma non valorizzata)');
 $service->replaceValues($entryId, [
-    ['field_id' => 204, 'value_text' => 'Altro campo', 'value_json' => null],
+    ['field_id' => $otherFieldId, 'value_text' => 'Altro campo', 'value_json' => null],
 ]);
 echo '  values: ' . json_encode($service->getValues($entryId), JSON_UNESCAPED_SLASHES) . "\n";
 

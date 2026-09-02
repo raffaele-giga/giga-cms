@@ -12,6 +12,7 @@ require dirname(__DIR__) . '/bootstrap.php';
 use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\ContentStatusRepository;
 use Giga\Cms\Repositories\ContentEntryRepository;
+use Giga\Cms\Repositories\FieldRepository;
 
 function line(string $label): void
 {
@@ -21,6 +22,12 @@ function line(string $label): void
 $typeRepo   = new ContentTypeRepository();
 $statusRepo = new ContentStatusRepository();
 $entryRepo  = new ContentEntryRepository();
+$fieldRepo  = new FieldRepository();
+
+// content_entry_values.field_id ha una FK verso fields: servono field_id reali.
+$clientFieldId   = $fieldRepo->create(['key' => 'smoke_client', 'label' => 'Cliente', 'type' => 'text']);
+$yearFieldId     = $fieldRepo->create(['key' => 'smoke_year', 'label' => 'Anno', 'type' => 'number']);
+$repeaterFieldId = $fieldRepo->create(['key' => 'smoke_repeater', 'label' => 'Righe', 'type' => 'text']);
 
 line('ContentStatusRepository::findAll');
 foreach ($statusRepo->findAll() as $status) {
@@ -77,15 +84,15 @@ echo '  ' . json_encode($entryRepo->findById($entry2Id), JSON_UNESCAPED_SLASHES)
 
 line('ContentEntryRepository::replaceValues su entry 1 (client=text, year=number)');
 $entryRepo->replaceValues($entry1Id, [
-    ['field_id' => 101, 'value_text' => 'Acme Spa'],
-    ['field_id' => 102, 'value_number' => 2026],
+    ['field_id' => $clientFieldId, 'value_text' => 'Acme Spa'],
+    ['field_id' => $yearFieldId, 'value_number' => 2026],
 ]);
 echo '  values: ' . json_encode($entryRepo->getValues($entry1Id), JSON_UNESCAPED_SLASHES) . "\n";
 
 line('ContentEntryRepository::replaceValues sovrascrive (repeater con 2 righe sullo stesso field_id)');
 $entryRepo->replaceValues($entry1Id, [
-    ['field_id' => 103, 'sort_order' => 0, 'value_text' => 'Riga repeater 1'],
-    ['field_id' => 103, 'sort_order' => 1, 'value_text' => 'Riga repeater 2'],
+    ['field_id' => $repeaterFieldId, 'sort_order' => 0, 'value_text' => 'Riga repeater 1'],
+    ['field_id' => $repeaterFieldId, 'sort_order' => 1, 'value_text' => 'Riga repeater 2'],
 ]);
 echo '  values dopo replace: ' . json_encode($entryRepo->getValues($entry1Id), JSON_UNESCAPED_SLASHES) . "\n";
 

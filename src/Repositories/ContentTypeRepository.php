@@ -67,6 +67,40 @@ class ContentTypeRepository
         return $this->db->execute("DELETE FROM content_types WHERE id = ?", [$id]) > 0;
     }
 
+    /** Field Group assegnati, ordinati per sort_order dell'associazione (pivot M:N). */
+    public function getFieldGroups(int $contentTypeId): array
+    {
+        return $this->db->fetchAll(
+            "SELECT fg.*, ctfg.sort_order
+             FROM content_type_field_groups ctfg
+             JOIN field_groups fg ON fg.id = ctfg.field_group_id
+             WHERE ctfg.content_type_id = ?
+             ORDER BY ctfg.sort_order ASC",
+            [$contentTypeId]
+        );
+    }
+
+    /**
+     * Sostituisce l'intera assegnazione di Field Group del Content Type
+     * (delete+insert, stesso pattern di ContentEntryRepository::replaceValues).
+     * L'ordine di $fieldGroupIds diventa il sort_order.
+     */
+    public function syncFieldGroups(int $contentTypeId, array $fieldGroupIds): void
+    {
+        $this->db->transaction(function () use ($contentTypeId, $fieldGroupIds) {
+            $this->db->execute(
+                "DELETE FROM content_type_field_groups WHERE content_type_id = ?",
+                [$contentTypeId]
+            );
+            foreach (array_values($fieldGroupIds) as $sortOrder => $fieldGroupId) {
+                $this->db->execute(
+                    "INSERT INTO content_type_field_groups (content_type_id, field_group_id, sort_order) VALUES (?, ?, ?)",
+                    [$contentTypeId, $fieldGroupId, $sortOrder]
+                );
+            }
+        });
+    }
+
     private function filterFields(array $data): array
     {
         $allowed = [

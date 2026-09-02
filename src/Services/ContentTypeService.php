@@ -4,6 +4,7 @@ namespace Giga\Cms\Services;
 
 use Giga\Core\Database;
 use Giga\Cms\Repositories\ContentTypeRepository;
+use Giga\Cms\Repositories\FieldGroupRepository;
 
 /**
  * Permission-agnostic per design: nessun metodo qui chiama PermissionService
@@ -32,11 +33,13 @@ class ContentTypeService
 
     private Database $db;
     private ContentTypeRepository $typeRepository;
+    private FieldGroupRepository $fieldGroupRepository;
 
     public function __construct()
     {
-        $this->db             = Database::getInstance();
-        $this->typeRepository = new ContentTypeRepository();
+        $this->db                   = Database::getInstance();
+        $this->typeRepository       = new ContentTypeRepository();
+        $this->fieldGroupRepository = new FieldGroupRepository();
     }
 
     public function getById(int $id): array
@@ -131,6 +134,28 @@ class ContentTypeService
                 $this->renamePermissions($existing['slug'], $newSlug);
             }
         });
+    }
+
+    public function getFieldGroups(int $id): array
+    {
+        return $this->typeRepository->getFieldGroups($id);
+    }
+
+    /**
+     * Sostituisce l'intera assegnazione di Field Group del Content Type.
+     * $fieldGroupIds nell'ordine di visualizzazione desiderato.
+     */
+    public function syncFieldGroups(int $id, array $fieldGroupIds): void
+    {
+        $this->getById($id);
+
+        foreach ($fieldGroupIds as $fieldGroupId) {
+            if (!$this->fieldGroupRepository->findById((int) $fieldGroupId)) {
+                throw new \RuntimeException("Field Group id={$fieldGroupId} non trovato.");
+            }
+        }
+
+        $this->typeRepository->syncFieldGroups($id, array_map('intval', $fieldGroupIds));
     }
 
     /**
