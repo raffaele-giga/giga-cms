@@ -36,6 +36,26 @@ CREATE TABLE IF NOT EXISTS sec_role_permissions (
     CONSTRAINT fk_rp_permission FOREIGN KEY (permission_id) REFERENCES sec_permissions (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Schema identico a wos-pro/001_base_setup.sql (colonne, tipi, indici) —
+-- serve a verificare che AuditService::log() (giga-core, reale, non uno
+-- stand-in) scriva righe corrette in un ambiente realistico.
+CREATE TABLE IF NOT EXISTS sec_audit_logs (
+    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id     INT UNSIGNED DEFAULT NULL,
+    user_email  VARCHAR(255) DEFAULT NULL,
+    action      VARCHAR(100) NOT NULL,
+    entity      VARCHAR(50) DEFAULT NULL,
+    entity_id   INT UNSIGNED DEFAULT NULL,
+    ip          VARCHAR(45) NOT NULL,
+    user_agent  VARCHAR(255) DEFAULT NULL,
+    payload     TEXT DEFAULT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_user_id (user_id),
+    KEY idx_entity (entity, entity_id),
+    KEY idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 INSERT INTO sec_roles (name, slug, description) VALUES
 ('Amministratore', 'admin', 'Accesso completo'),
 ('Editor', 'editor', 'Gestione contenuti');
