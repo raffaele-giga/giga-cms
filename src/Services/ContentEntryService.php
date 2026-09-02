@@ -5,6 +5,8 @@ namespace Giga\Cms\Services;
 use Giga\Cms\Repositories\ContentEntryRepository;
 use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\ContentStatusRepository;
+use Giga\Cms\Repositories\FieldRepository;
+use Giga\Cms\FieldTypes\FieldTypeRegistry;
 
 /**
  * Permission-agnostic per design: nessun metodo qui chiama PermissionService
@@ -20,12 +22,16 @@ class ContentEntryService
     private ContentEntryRepository $entryRepository;
     private ContentTypeRepository $typeRepository;
     private ContentStatusRepository $statusRepository;
+    private FieldRepository $fieldRepository;
+    private FieldTypeRegistry $fieldTypeRegistry;
 
     public function __construct()
     {
         $this->entryRepository  = new ContentEntryRepository();
         $this->typeRepository   = new ContentTypeRepository();
         $this->statusRepository = new ContentStatusRepository();
+        $this->fieldRepository  = new FieldRepository();
+        $this->fieldTypeRegistry = new FieldTypeRegistry();
     }
 
     public function getById(int $id): array
@@ -124,34 +130,57 @@ class ContentEntryService
     /**
      * Sostituisce i values di un'entry.
      *
-     * RESTRIZIONE TEMPORANEA: rifiuta incondizionatamente qualunque riga che
-     * valorizzi value_json. Per Decisione #1/Invariante #3, value_json è
-     * ammesso solo per strutture composite realmente non relazionali — ma
-     * "quale field è un composito ammesso" è un'informazione che vive nella
-     * definizione del Field Type, e il Field Type registry (roadmap punto 8,
-     * "punto di estensione assente in giga-core") non esiste ancora. Finché
-     * non esiste, nessun field può essere legittimamente dichiarato
-     * "composito ammesso": il blocco è quindi totale e non selettivo, non
-     * una validazione per-field.
+     * value_json è validato per-field tramite il Field Type registry: una
+     * riga può valorizzarlo solo se il tipo dichiarato del suo field lo
+     * ammette esplicitamente (schema()['uses_value_json'], oggi solo
+     * LinkFieldType — Invariante #3, "composito realmente non relazionale").
      *
-     * DA RIMUOVERE quando arriva il Field Type registry, sostituendola con
-     * la validazione vera: risolvere il Field Type dichiarato per ogni
-     * field_id, verificare se quel tipo ammette value_json, e rifiutare
-     * solo le righe che lo valorizzano senza averne diritto.
+     * RESTRIZIONE CONSERVATIVA residua, non più totale: se il field ha un
+     * type non ancora coperto dal registry (es. un futuro 'media', prima
+     * che Media/Gallery lo registri), scrivere value_json per QUEL field
+     * specifico resta bloccato — non possiamo sapere se sarebbe legittimo.
+     * Non blocca gli altri field della stessa chiamata, né chi non tocca
+     * value_json affatto.
      */
     public function replaceValues(int $entryId, array $rows): void
     {
         foreach ($rows as $row) {
-            if (array_key_exists('value_json', $row) && $row['value_json'] !== null) {
-                throw new \RuntimeException(
-                    "Scrittura su value_json non consentita: nessun field è ancora dichiarato "
-                    . "'composito ammesso' (serve il Field Type registry, non ancora implementato). "
-                    . "Restrizione temporanea, vedi commento su ContentEntryService::replaceValues()."
-                );
-            }
+            $this->assertValueJsonAllowed($row);
         }
 
         $this->entryRepository->replaceValues($entryId, $rows);
+    }
+
+    private function assertValueJsonAllowed(array $row): void
+    {
+        if (!array_key_exists('value_json', $row) || $row['value_json'] === null) {
+            return;
+        }
+        if (!array_key_exists('field_id', $row)) {
+            throw new \RuntimeException('Impossibile validare value_json su una riga senza field_id.');
+        }
+
+        $fieldId = (int) $row['field_id'];
+        $field   = $this->fieldRepository->findById($fieldId);
+        if (!$field) {
+            throw new \RuntimeException("Field id={$fieldId} non trovato.");
+        }
+
+        if (!$this->fieldTypeRegistry->has($field['type'])) {
+            throw new \RuntimeException(
+                "Scrittura su value_json non consentita per il field '{$field['key']}' (type "
+                . "'{$field['type']}'): tipo non ancora coperto dal Field Type registry — restrizione "
+                . 'conservativa su questo field specifico, non un blocco totale (vedi FieldTypeRegistry).'
+            );
+        }
+
+        $schema = $this->fieldTypeRegistry->get($field['type'])->schema();
+        if (empty($schema['uses_value_json'])) {
+            throw new \RuntimeException(
+                "Scrittura su value_json non consentita per il field '{$field['key']}' (type "
+                . "'{$field['type']}'): questo tipo non lo dichiara come composito ammesso (Invariante #3)."
+            );
+        }
     }
 
     private function resolveContentType(array $data): array
