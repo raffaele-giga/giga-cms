@@ -6,19 +6,10 @@
  * giga-cms in isolamento — non è lo script bin/migrate.php di produzione,
  * che vive nel progetto consumer reale (vedi Giga\Core\Migrations\Migrator).
  *
- * Require diretto dei sorgenti giga-core (path relativo, nessun autoload
- * Composer): giga-core è consultato in sola lettura come repo sibling.
- *
  * Uso: php dev/bin/migrate.php <package> [run|rollback|status] [--steps=N]
  */
 
-define('ROOT_PATH', dirname(__DIR__));
-
-$gigaCoreSrc = dirname(__DIR__, 3) . '/giga-core/src';
-
-require $gigaCoreSrc . '/Database.php';
-require $gigaCoreSrc . '/Migrations/Migration.php';
-require $gigaCoreSrc . '/Migrations/Migrator.php';
+require dirname(__DIR__) . '/bootstrap.php';
 
 use Giga\Core\Migrations\Migrator;
 

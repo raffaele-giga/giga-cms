@@ -1,0 +1,160 @@
+<?php
+
+namespace Giga\Cms\Repositories;
+
+use Giga\Core\Database;
+use Giga\Cms\Models\ContentEntry;
+use Giga\Cms\Models\ContentEntryValue;
+
+/**
+ * CRUD di content_entries + content_entry_values. Le due tabelle sono
+ * gestite insieme perché i values non hanno significato senza la loro
+ * entry (aggregato, non due risorse indipendenti) — vedi Decisione #1
+ * (persistenza Custom Field) nell'architettura.
+ *
+ * Repository puro: nessuna regola di business (status di default,
+ * validazione permessi, resolve di slug/content_type). Quello è compito
+ * del Service — qui si accettano solo ID già risolti.
+ */
+class ContentEntryRepository
+{
+    private Database $db;
+    private ContentEntry $model;
+    private ContentEntryValue $valueModel;
+
+    public function __construct()
+    {
+        $this->db         = Database::getInstance();
+        $this->model      = new ContentEntry();
+        $this->valueModel = new ContentEntryValue();
+    }
+
+    public function findById(int $id): array|false
+    {
+        return $this->db->fetchOne(
+            "SELECT e.*,
+                    ct.slug AS content_type_slug, ct.label_singular AS content_type_label,
+                    cs.system_key AS status_key, cs.label AS status_label,
+                    cs.is_public AS status_is_public, cs.is_terminal AS status_is_terminal
+             FROM content_entries e
+             JOIN content_types ct ON ct.id = e.content_type_id
+             JOIN content_statuses cs ON cs.id = e.status_id
+             WHERE e.id = ? AND e.deleted_at IS NULL
+             LIMIT 1",
+            [$id]
+        );
+    }
+
+    public function findPaginated(int $contentTypeId, int $page, int $perPage, array $filters = []): array
+    {
+        [$where, $params] = $this->buildWhere($contentTypeId, $filters);
+        $offset   = ($page - 1) * $perPage;
+        $params[] = $perPage;
+        $params[] = $offset;
+
+        return $this->db->fetchAll(
+            "SELECT e.*,
+                    cs.system_key AS status_key, cs.label AS status_label, cs.is_public AS status_is_public
+             FROM content_entries e
+             JOIN content_statuses cs ON cs.id = e.status_id
+             {$where}
+             ORDER BY e.sort_order ASC, e.created_at DESC
+             LIMIT ? OFFSET ?",
+            $params
+        );
+    }
+
+    public function countAll(int $contentTypeId, array $filters = []): int
+    {
+        [$where, $params] = $this->buildWhere($contentTypeId, $filters);
+        $row = $this->db->fetchOne(
+            "SELECT COUNT(*) AS total
+             FROM content_entries e
+             JOIN content_statuses cs ON cs.id = e.status_id
+             {$where}",
+            $params
+        );
+        return (int) ($row['total'] ?? 0);
+    }
+
+    public function create(array $data): int
+    {
+        return $this->model->insert($this->filterFields($data));
+    }
+
+    public function update(int $id, array $data): bool
+    {
+        return $this->model->update($id, $this->filterFields($data));
+    }
+
+    /** Soft delete (deleted_at) — non tocca lo status editoriale. */
+    public function delete(int $id): void
+    {
+        $this->model->delete($id);
+    }
+
+    public function restore(int $id): void
+    {
+        $this->model->restore($id);
+    }
+
+    public function getValues(int $entryId): array
+    {
+        return $this->db->fetchAll(
+            "SELECT * FROM content_entry_values WHERE entry_id = ? ORDER BY field_id ASC, sort_order ASC",
+            [$entryId]
+        );
+    }
+
+    /**
+     * Sostituisce tutti i values dell'entry con $rows (ognuno un array
+     * associativo di colonne di content_entry_values: field_id, sort_order,
+     * value_text/value_number/... — quale colonna valorizzare è deciso dal
+     * chiamante in base al Field Type, non da questo Repository).
+     *
+     * Delete+insert invece di upsert: i field di tipo repeater ammettono
+     * più righe per lo stesso field_id, quindi non c'è una chiave naturale
+     * su cui fare upsert riga-per-riga.
+     */
+    public function replaceValues(int $entryId, array $rows): void
+    {
+        $this->db->transaction(function () use ($entryId, $rows) {
+            $this->db->execute("DELETE FROM content_entry_values WHERE entry_id = ?", [$entryId]);
+            foreach ($rows as $row) {
+                $this->valueModel->insert(['entry_id' => $entryId, ...$row]);
+            }
+        });
+    }
+
+    private function filterFields(array $data): array
+    {
+        $allowed = [
+            'content_type_id',
+            'status_id',
+            'published_at',
+            'published_until',
+            'include_in_archive',
+            'indexable',
+            'sort_order',
+            'is_featured',
+            'template',
+        ];
+        return array_filter($data, fn($key) => in_array($key, $allowed), ARRAY_FILTER_USE_KEY);
+    }
+
+    private function buildWhere(int $contentTypeId, array $filters): array
+    {
+        $conditions = ['e.content_type_id = ?', 'e.deleted_at IS NULL'];
+        $params     = [$contentTypeId];
+
+        if (!empty($filters['status_id'])) {
+            $conditions[] = 'e.status_id = ?';
+            $params[]     = (int) $filters['status_id'];
+        }
+        if (!empty($filters['is_featured'])) {
+            $conditions[] = 'e.is_featured = 1';
+        }
+
+        return ['WHERE ' . implode(' AND ', $conditions), $params];
+    }
+}
