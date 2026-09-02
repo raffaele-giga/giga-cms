@@ -1,0 +1,9 @@
+services:
+  db:
+    image: mariadb:10.11
+    container_name: giga-cms-test-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: giga_cms_test
+    ports:
+      - "3310:3306"
