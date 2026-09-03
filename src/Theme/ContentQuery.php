@@ -3,12 +3,10 @@
 namespace Giga\Cms\Theme;
 
 use Giga\Cms\Repositories\ContentEntryRepository;
-use Giga\Cms\Repositories\FieldRepository;
+use Giga\Cms\Repositories\ContentEntryBlockRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
 use Giga\Cms\Repositories\TaxonomyTermRepository;
-use Giga\Cms\Repositories\MediaRepository;
 use Giga\Cms\Repositories\LanguageRepository;
-use Giga\Cms\FieldTypes\FieldTypeRegistry;
 
 /**
  * Query service del Contratto Theme↔CMS (Decisione #3): "il tema non
@@ -30,12 +28,11 @@ class ContentQuery
         private array $contentType,
         private array $language,
         private ContentEntryRepository $entryRepository,
-        private FieldRepository $fieldRepository,
+        private ContentEntryBlockRepository $blockRepository,
         private TaxonomyRepository $taxonomyRepository,
         private TaxonomyTermRepository $termRepository,
-        private MediaRepository $mediaRepository,
         private LanguageRepository $languageRepository,
-        private FieldTypeRegistry $fieldTypeRegistry
+        private FieldValueResolver $fieldValueResolver
     ) {
     }
 
@@ -106,10 +103,9 @@ class ContentQuery
                 $row,
                 $this->language,
                 $this->entryRepository,
-                $this->fieldRepository,
+                $this->blockRepository,
                 $this->taxonomyRepository,
-                $this->mediaRepository,
-                $this->fieldTypeRegistry
+                $this->fieldValueResolver
             ),
             $rows
         );

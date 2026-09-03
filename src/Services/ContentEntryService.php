@@ -7,6 +7,8 @@ use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\ContentStatusRepository;
 use Giga\Cms\Repositories\FieldRepository;
 use Giga\Cms\Repositories\TaxonomyTermRepository;
+use Giga\Cms\Repositories\ContentEntryBlockRepository;
+use Giga\Cms\Repositories\BlockTypeRepository;
 use Giga\Cms\FieldTypes\FieldTypeRegistry;
 
 /**
@@ -25,15 +27,19 @@ class ContentEntryService
     private ContentStatusRepository $statusRepository;
     private FieldRepository $fieldRepository;
     private TaxonomyTermRepository $termRepository;
+    private ContentEntryBlockRepository $blockRepository;
+    private BlockTypeRepository $blockTypeRepository;
     private FieldTypeRegistry $fieldTypeRegistry;
 
     public function __construct()
     {
-        $this->entryRepository  = new ContentEntryRepository();
-        $this->typeRepository   = new ContentTypeRepository();
-        $this->statusRepository = new ContentStatusRepository();
-        $this->fieldRepository  = new FieldRepository();
-        $this->termRepository   = new TaxonomyTermRepository();
+        $this->entryRepository    = new ContentEntryRepository();
+        $this->typeRepository     = new ContentTypeRepository();
+        $this->statusRepository   = new ContentStatusRepository();
+        $this->fieldRepository    = new FieldRepository();
+        $this->termRepository     = new TaxonomyTermRepository();
+        $this->blockRepository    = new ContentEntryBlockRepository();
+        $this->blockTypeRepository = new BlockTypeRepository();
         $this->fieldTypeRegistry = new FieldTypeRegistry();
     }
 
@@ -408,6 +414,87 @@ class ContentEntryService
                 "template '{$template}' non è tra le varianti dichiarate dal Content Type: " . implode(', ', $options)
             );
         }
+    }
+
+    /** Istanze di blocco dell'entry, ordinate (Page Builder). */
+    public function getBlocks(int $entryId): array
+    {
+        $this->getById($entryId);
+        return $this->blockRepository->findByEntry($entryId);
+    }
+
+    /**
+     * Aggiunge un'istanza di Block Type in coda (o alla posizione
+     * $sortOrder indicata). Non è un "replace": ogni blocco ha identità
+     * stabile (i suoi content_entry_values scoped per block_id) — vedi
+     * ContentEntryBlockRepository.
+     */
+    public function addBlock(int $entryId, int $blockTypeId, ?int $sortOrder = null): int
+    {
+        $this->getById($entryId);
+        if (!$this->blockTypeRepository->findById($blockTypeId)) {
+            throw new \RuntimeException("Block Type id={$blockTypeId} non trovato.");
+        }
+
+        $sortOrder ??= count($this->blockRepository->findByEntry($entryId));
+
+        return $this->blockRepository->create([
+            'entry_id'      => $entryId,
+            'block_type_id' => $blockTypeId,
+            'sort_order'    => $sortOrder,
+        ]);
+    }
+
+    /** Riordina le istanze esistenti (aggiorna sort_order, non le ricrea) — vedi ContentEntryBlockRepository::reorder(). */
+    public function reorderBlocks(int $entryId, array $blockIds): void
+    {
+        $this->getById($entryId);
+
+        foreach ($blockIds as $blockId) {
+            $block = $this->blockRepository->findById((int) $blockId);
+            if (!$block || (int) $block['entry_id'] !== $entryId) {
+                throw new \RuntimeException("Block id={$blockId} non appartiene a questa entry.");
+            }
+        }
+
+        $this->blockRepository->reorder($entryId, array_map('intval', $blockIds));
+    }
+
+    /** Cancella l'istanza di blocco — FK CASCADE su content_entry_values.block_id ne ripulisce i values. */
+    public function removeBlock(int $blockId): void
+    {
+        if (!$this->blockRepository->findById($blockId)) {
+            throw new \RuntimeException('Block non trovato.');
+        }
+        $this->blockRepository->delete($blockId);
+    }
+
+    public function getBlockValues(int $blockId): array
+    {
+        if (!$this->blockRepository->findById($blockId)) {
+            throw new \RuntimeException('Block non trovato.');
+        }
+        return $this->entryRepository->getBlockValues($blockId);
+    }
+
+    /**
+     * Stessa validazione per-riga di replaceValues() (assertRowValid,
+     * riusata non duplicata): value_json ammesso solo se il tipo del
+     * field lo dichiara, language_id obbligatorio solo se il field è
+     * translatable. Lo scoping per block_id lo fa il Repository.
+     */
+    public function replaceBlockValues(int $blockId, array $rows): void
+    {
+        $block = $this->blockRepository->findById($blockId);
+        if (!$block) {
+            throw new \RuntimeException('Block non trovato.');
+        }
+
+        foreach ($rows as $row) {
+            $this->assertRowValid($row);
+        }
+
+        $this->entryRepository->replaceBlockValues((int) $block['entry_id'], $blockId, $rows);
     }
 
     private function resolveContentType(array $data): array

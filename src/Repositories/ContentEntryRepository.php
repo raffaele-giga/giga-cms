@@ -98,30 +98,65 @@ class ContentEntryRepository
         $this->model->restore($id);
     }
 
+    /**
+     * Solo i values diretti dell'entry (block_id IS NULL) — quelli scoped
+     * a un'istanza di blocco (Page Builder) si leggono con getBlockValues(),
+     * mai mescolati qui: altrimenti un field di un blocco comparirebbe
+     * anche come field diretto dell'entry.
+     */
     public function getValues(int $entryId): array
     {
         return $this->db->fetchAll(
-            "SELECT * FROM content_entry_values WHERE entry_id = ? ORDER BY field_id ASC, sort_order ASC",
+            "SELECT * FROM content_entry_values WHERE entry_id = ? AND block_id IS NULL ORDER BY field_id ASC, sort_order ASC",
             [$entryId]
         );
     }
 
     /**
-     * Sostituisce tutti i values dell'entry con $rows (ognuno un array
-     * associativo di colonne di content_entry_values: field_id, sort_order,
-     * value_text/value_number/... — quale colonna valorizzare è deciso dal
-     * chiamante in base al Field Type, non da questo Repository).
+     * Sostituisce i values DIRETTI dell'entry (block_id IS NULL) con $rows
+     * (ognuno un array associativo di colonne di content_entry_values:
+     * field_id, sort_order, value_text/value_number/... — quale colonna
+     * valorizzare è deciso dal chiamante in base al Field Type, non da
+     * questo Repository).
      *
      * Delete+insert invece di upsert: i field di tipo repeater ammettono
      * più righe per lo stesso field_id, quindi non c'è una chiave naturale
-     * su cui fare upsert riga-per-riga.
+     * su cui fare upsert riga-per-riga. Lo scoping esplicito a block_id
+     * IS NULL evita di cancellare i values di eventuali blocchi
+     * sull'stessa entry, che condividono la stessa entry_id.
      */
     public function replaceValues(int $entryId, array $rows): void
     {
         $this->db->transaction(function () use ($entryId, $rows) {
-            $this->db->execute("DELETE FROM content_entry_values WHERE entry_id = ?", [$entryId]);
+            $this->db->execute("DELETE FROM content_entry_values WHERE entry_id = ? AND block_id IS NULL", [$entryId]);
             foreach ($rows as $row) {
                 $this->valueModel->insert(['entry_id' => $entryId, ...$row]);
+            }
+        });
+    }
+
+    /** Values di UNA istanza di blocco specifica, mai quelli diretti dell'entry o di altre istanze. */
+    public function getBlockValues(int $blockId): array
+    {
+        return $this->db->fetchAll(
+            "SELECT * FROM content_entry_values WHERE block_id = ? ORDER BY field_id ASC, sort_order ASC",
+            [$blockId]
+        );
+    }
+
+    /**
+     * Sostituisce i values di UNA istanza di blocco (delete+insert scoped
+     * per block_id, stesso principio di replaceValues/replaceGallery).
+     * $entryId è denormalizzato su ogni riga (colonna NOT NULL, anche per
+     * i values scoped a un blocco) — lo riceve esplicitamente invece di
+     * interrogare content_entry_blocks per evitare una query in più.
+     */
+    public function replaceBlockValues(int $entryId, int $blockId, array $rows): void
+    {
+        $this->db->transaction(function () use ($entryId, $blockId, $rows) {
+            $this->db->execute("DELETE FROM content_entry_values WHERE block_id = ?", [$blockId]);
+            foreach ($rows as $row) {
+                $this->valueModel->insert(['entry_id' => $entryId, 'block_id' => $blockId, ...$row]);
             }
         });
     }
