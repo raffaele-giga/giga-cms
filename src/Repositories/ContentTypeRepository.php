@@ -148,6 +148,7 @@ class ContentTypeRepository
             'supports_featured',
             'default_ordering',
             'template',
+            'template_options',
             'permalink_pattern',
             'json_ld_type',
             'include_in_sitemap',

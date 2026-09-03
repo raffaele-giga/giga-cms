@@ -54,7 +54,7 @@ class ContentTypeService
         if (!$type) {
             throw new \RuntimeException('Content Type non trovato.');
         }
-        return $type;
+        return $this->decodeTemplateOptions($type);
     }
 
     public function getBySlug(string $slug): array
@@ -63,7 +63,7 @@ class ContentTypeService
         if (!$type) {
             throw new \RuntimeException("Content Type '{$slug}' non trovato.");
         }
-        return $type;
+        return $this->decodeTemplateOptions($type);
     }
 
     public function getAllForAdminMenu(): array
@@ -73,9 +73,12 @@ class ContentTypeService
 
     public function create(array $data): int
     {
-        $slug = $this->validateSlug($data['slug'] ?? '', 0);
+        $slug            = $this->validateSlug($data['slug'] ?? '', 0);
+        $templateOptions = $this->normalizeTemplateOptions($data['template_options'] ?? null);
+        $template        = $data['template'] ?? null;
+        $this->validateTemplateChoice($template, $templateOptions);
 
-        return $this->db->transaction(function () use ($data, $slug) {
+        return $this->db->transaction(function () use ($data, $slug, $template, $templateOptions) {
             $id = $this->typeRepository->create([
                 'slug'               => $slug,
                 'label'              => trim($data['label'] ?? ''),
@@ -86,7 +89,8 @@ class ContentTypeService
                 'supports_media'     => (int) (bool) ($data['supports_media'] ?? false),
                 'supports_featured'  => (int) (bool) ($data['supports_featured'] ?? false),
                 'default_ordering'   => $data['default_ordering'] ?? 'created_at',
-                'template'           => $data['template'] ?? null,
+                'template'           => $template,
+                'template_options'   => $templateOptions !== null ? json_encode($templateOptions) : null,
                 'permalink_pattern'  => $data['permalink_pattern'] ?? null,
                 'json_ld_type'       => $data['json_ld_type'] ?? null,
                 'include_in_sitemap' => isset($data['include_in_sitemap']) ? (int) (bool) $data['include_in_sitemap'] : 1,
@@ -128,6 +132,20 @@ class ContentTypeService
             if (array_key_exists($boolField, $fields)) {
                 $fields[$boolField] = (int) (bool) $fields[$boolField];
             }
+        }
+
+        // template_options e template si validano insieme: qualunque delle
+        // due venga toccata da questo update, il confronto usa il valore
+        // finale effettivo (nuovo se passato, esistente altrimenti), mai i
+        // due vecchi valori tra loro o i due nuovi isolatamente.
+        $finalTemplateOptions = array_key_exists('template_options', $data)
+            ? $this->normalizeTemplateOptions($data['template_options'])
+            : $existing['template_options'];
+        $finalTemplate = array_key_exists('template', $fields) ? $fields['template'] : $existing['template'];
+        $this->validateTemplateChoice($finalTemplate, $finalTemplateOptions);
+
+        if (array_key_exists('template_options', $data)) {
+            $fields['template_options'] = $finalTemplateOptions !== null ? json_encode($finalTemplateOptions) : null;
         }
 
         $newSlug = null;
@@ -259,6 +277,49 @@ class ContentTypeService
         }
 
         return $slug;
+    }
+
+    /**
+     * NULL/[] = nessun vincolo dichiarato (template resta libero, come
+     * prima di questa colonna). Altrimenti: array di stringhe non vuote.
+     */
+    private function normalizeTemplateOptions(mixed $raw): ?array
+    {
+        if ($raw === null || $raw === []) {
+            return null;
+        }
+        if (!is_array($raw)) {
+            throw new \RuntimeException('template_options deve essere un array di stringhe.');
+        }
+        foreach ($raw as $option) {
+            if (!is_string($option) || trim($option) === '') {
+                throw new \RuntimeException('Ogni voce di template_options deve essere una stringa non vuota.');
+            }
+        }
+
+        return array_values($raw);
+    }
+
+    /** Nessun vincolo se template_options non è dichiarato, o se non si sta impostando un template. */
+    private function validateTemplateChoice(?string $template, ?array $templateOptions): void
+    {
+        if ($templateOptions === null || $template === null) {
+            return;
+        }
+        if (!in_array($template, $templateOptions, true)) {
+            throw new \RuntimeException(
+                "template '{$template}' non è tra le varianti dichiarate: " . implode(', ', $templateOptions)
+            );
+        }
+    }
+
+    private function decodeTemplateOptions(array $type): array
+    {
+        $type['template_options'] = $type['template_options'] !== null
+            ? json_decode($type['template_options'], true)
+            : null;
+
+        return $type;
     }
 
     /** Decisione #4: uno slug non può coincidere con un module di sistema (resource_type IS NULL). */

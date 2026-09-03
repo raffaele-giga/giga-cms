@@ -73,6 +73,8 @@ class ContentEntryService
     {
         $contentType = $this->resolveContentType($data);
         $statusId    = $this->resolveStatusId($data);
+        $template    = $data['template'] ?? null;
+        $this->validateTemplateChoice($template, $contentType);
 
         return $this->entryRepository->create([
             'content_type_id'    => $contentType['id'],
@@ -84,13 +86,13 @@ class ContentEntryService
             'follow'             => isset($data['follow']) ? (int) (bool) $data['follow'] : 1,
             'sort_order'         => (int) ($data['sort_order'] ?? 0),
             'is_featured'        => isset($data['is_featured']) ? (int) (bool) $data['is_featured'] : 0,
-            'template'           => $data['template'] ?? null,
+            'template'           => $template,
         ]);
     }
 
     public function update(int $id, array $data): void
     {
-        $this->getById($id);
+        $entry = $this->getById($id);
 
         $fields = array_intersect_key($data, array_flip([
             'status_id',
@@ -111,6 +113,11 @@ class ContentEntryService
             if (array_key_exists($boolField, $fields)) {
                 $fields[$boolField] = (int) (bool) $fields[$boolField];
             }
+        }
+
+        if (array_key_exists('template', $fields)) {
+            $contentType = $this->typeRepository->findById((int) $entry['content_type_id']);
+            $this->validateTemplateChoice($fields['template'], $contentType);
         }
 
         $this->entryRepository->update($id, $fields);
@@ -383,6 +390,24 @@ class ContentEntryService
         }
 
         $this->entryRepository->replaceRelations($entryId, $relationType, array_map('intval', $relatedEntryIds));
+    }
+
+    /**
+     * Nessun vincolo se il Content Type non dichiara template_options
+     * (Template per Content Type) o se non si sta impostando un template.
+     */
+    private function validateTemplateChoice(?string $template, array $contentType): void
+    {
+        if ($template === null || empty($contentType['template_options'])) {
+            return;
+        }
+
+        $options = json_decode($contentType['template_options'], true);
+        if (is_array($options) && !in_array($template, $options, true)) {
+            throw new \RuntimeException(
+                "template '{$template}' non è tra le varianti dichiarate dal Content Type: " . implode(', ', $options)
+            );
+        }
     }
 
     private function resolveContentType(array $data): array
