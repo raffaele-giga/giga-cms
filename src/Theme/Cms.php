@@ -76,7 +76,8 @@ class Cms
             $this->taxonomyRepository,
             $this->termRepository,
             $this->languageRepository,
-            $this->fieldValueResolver
+            $this->fieldValueResolver,
+            $this->translationService
         );
     }
 

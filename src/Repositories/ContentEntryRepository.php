@@ -372,10 +372,18 @@ class ContentEntryRepository
      * nessuna traduzione deve restare visibile in admin per poterne
      * aggiungere una.
      */
-    public function findForTheme(int $contentTypeId, int $languageId, array $filters, int $page, int $perPage): array
+    /**
+     * $defaultOrdering è content_types.default_ordering (Content Type
+     * vs Content Entry, "campo per l'ordinamento di default"). Whitelist
+     * esplicita, mai interpolato direttamente: 'custom_field' non ha
+     * ancora un'implementazione (nessuna colonna dichiara quale field
+     * usare) e ricade sullo stesso ordinamento manuale di 'manual'.
+     */
+    public function findForTheme(int $contentTypeId, int $languageId, array $filters, int $page, int $perPage, string $defaultOrdering = 'manual'): array
     {
         [$where, $whereParams] = $this->buildWhere($contentTypeId, $filters);
-        $offset = ($page - 1) * $perPage;
+        $offset  = ($page - 1) * $perPage;
+        $orderBy = $this->resolveThemeOrderBy($defaultOrdering);
 
         return $this->db->fetchAll(
             "SELECT e.*,
@@ -386,9 +394,42 @@ class ContentEntryRepository
              JOIN content_statuses cs ON cs.id = e.status_id
              JOIN content_entry_translations t ON t.entry_id = e.id AND t.language_id = ?
              {$where}
-             ORDER BY e.sort_order ASC, e.created_at DESC
+             ORDER BY {$orderBy}
              LIMIT ? OFFSET ?",
             [$languageId, ...$whereParams, $perPage, $offset]
+        );
+    }
+
+    private function resolveThemeOrderBy(string $defaultOrdering): string
+    {
+        return match ($defaultOrdering) {
+            'published_at'  => 'e.published_at DESC, e.id DESC',
+            'created_at'    => 'e.created_at DESC, e.id DESC',
+            'alphabetical'  => 't.title ASC, e.id ASC',
+            default         => 'e.sort_order ASC, e.created_at DESC, e.id DESC', // 'manual', 'custom_field' (non ancora implementato)
+        };
+    }
+
+    /**
+     * Singola entry per slug (pagina di dettaglio del tema) — pubblico
+     * effettivo forzato, sempre: nessuna entry non pubblicata deve
+     * essere raggiungibile indovinando/enumerando lo slug.
+     */
+    public function findBySlugForTheme(int $contentTypeId, int $languageId, string $slug): array|false
+    {
+        [$where, $whereParams] = $this->buildWhere($contentTypeId, ['effectively_public' => true]);
+
+        return $this->db->fetchOne(
+            "SELECT e.*,
+                    cs.system_key AS status_key, cs.is_public AS status_is_public,
+                    t.title, t.slug, t.meta_title, t.meta_description, t.canonical_url,
+                    t.og_title, t.og_description, t.og_media_id
+             FROM content_entries e
+             JOIN content_statuses cs ON cs.id = e.status_id
+             JOIN content_entry_translations t ON t.entry_id = e.id AND t.language_id = ?
+             {$where} AND t.slug = ?
+             LIMIT 1",
+            [$languageId, ...$whereParams, $slug]
         );
     }
 

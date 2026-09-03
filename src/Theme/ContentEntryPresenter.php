@@ -6,6 +6,7 @@ use Giga\Cms\Repositories\ContentEntryRepository;
 use Giga\Cms\Repositories\ContentEntryBlockRepository;
 use Giga\Cms\Repositories\ContentEntryStatRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
+use Giga\Cms\Services\ContentEntryTranslationService;
 
 /**
  * Metà "Presenter" del Contratto Theme↔CMS (Decisione #3). Nessuna
@@ -32,7 +33,8 @@ class ContentEntryPresenter
         private ContentEntryBlockRepository $blockRepository,
         private ContentEntryStatRepository $statRepository,
         private TaxonomyRepository $taxonomyRepository,
-        private FieldValueResolver $fieldValueResolver
+        private FieldValueResolver $fieldValueResolver,
+        private ContentEntryTranslationService $translationService
     ) {
     }
 
@@ -71,6 +73,30 @@ class ContentEntryPresenter
     public function stats(): ContentEntryStatsPresenter
     {
         return new ContentEntryStatsPresenter($this->statRepository->find((int) $this->row['id']));
+    }
+
+    /**
+     * Meta SEO con gli stessi fallback di ContentEntryTranslationService::
+     * getSeoMeta() (meta_title→title, canonical_url calcolato, robots da
+     * indexable+follow) — il tema non deve reimplementarli né chiamare
+     * il Service direttamente (Decisione #3).
+     *
+     * @return array{meta_title:?string, meta_description:?string, canonical_url:string, robots:string, og_title:?string, og_description:?string, og_media_id:?int, json_ld_type:?string}
+     */
+    public function seo(): array
+    {
+        return $this->translationService->getSeoMeta((int) $this->row['id'], (int) $this->language['id']);
+    }
+
+    /**
+     * Permalink reale (permalink_pattern, override per lingua, fallback
+     * calcolato) — il tema non deve mai ricostruire l'URL a mano da
+     * slug/content_type, userebbe la stessa logica duplicata invece che
+     * la fonte unica già costruita per questo (Decisione #2).
+     */
+    public function permalink(): string
+    {
+        return $this->translationService->getPermalink((int) $this->row['id'], (int) $this->language['id']);
     }
 
     /**

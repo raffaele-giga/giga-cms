@@ -202,7 +202,12 @@ if (count($remainingBlocks) !== 1 || $remainingBlocks[0]['id'] !== $block1Id) {
 }
 
 line("Contratto Theme↔CMS: \$page->blocks() espone type+fields, block cancellato non compare");
-$homePresenter = $cms->content('page')->published()->first();
+// ->slug() invece di ->first(): 'page' non specifica default_ordering
+// (quindi 'created_at' DESC) — con due entry create nello stesso
+// secondo, quale sia "la prima" dipende dal tie-break, non da quale
+// abbia i blocchi. La pagina che ci interessa si prende per slug, non
+// sperando in un ordine implicito.
+$homePresenter = $cms->content('page')->published()->slug('home')->first();
 foreach ($homePresenter->blocks() as $block) {
     echo "  block type={$block->type} fields=" . json_encode($block->fields) . "\n";
 }

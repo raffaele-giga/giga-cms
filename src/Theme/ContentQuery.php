@@ -8,6 +8,7 @@ use Giga\Cms\Repositories\ContentEntryStatRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
 use Giga\Cms\Repositories\TaxonomyTermRepository;
 use Giga\Cms\Repositories\LanguageRepository;
+use Giga\Cms\Services\ContentEntryTranslationService;
 
 /**
  * Query service del Contratto Theme↔CMS (Decisione #3): "il tema non
@@ -34,7 +35,8 @@ class ContentQuery
         private TaxonomyRepository $taxonomyRepository,
         private TaxonomyTermRepository $termRepository,
         private LanguageRepository $languageRepository,
-        private FieldValueResolver $fieldValueResolver
+        private FieldValueResolver $fieldValueResolver,
+        private ContentEntryTranslationService $translationService
     ) {
     }
 
@@ -77,6 +79,18 @@ class ContentQuery
         return $this;
     }
 
+    /**
+     * Singola entry per slug (pagina di dettaglio). Forza sempre il
+     * pubblico effettivo, indipendentemente da published(): nessuna
+     * entry non pubblicata deve essere raggiungibile indovinando lo
+     * slug (vedi ContentEntryRepository::findBySlugForTheme()).
+     */
+    public function slug(string $slug): static
+    {
+        $this->filters['slug'] = $slug;
+        return $this;
+    }
+
     public function limit(int $limit): static
     {
         $this->limitValue = max(1, $limit);
@@ -92,13 +106,23 @@ class ContentQuery
     /** @return ContentEntryPresenter[] */
     public function get(): array
     {
-        $rows = $this->entryRepository->findForTheme(
-            (int) $this->contentType['id'],
-            (int) $this->language['id'],
-            $this->filters,
-            $this->page,
-            $this->limitValue ?? 1000
-        );
+        if (isset($this->filters['slug'])) {
+            $row  = $this->entryRepository->findBySlugForTheme(
+                (int) $this->contentType['id'],
+                (int) $this->language['id'],
+                $this->filters['slug']
+            );
+            $rows = $row ? [$row] : [];
+        } else {
+            $rows = $this->entryRepository->findForTheme(
+                (int) $this->contentType['id'],
+                (int) $this->language['id'],
+                $this->filters,
+                $this->page,
+                $this->limitValue ?? 1000,
+                (string) ($this->contentType['default_ordering'] ?? 'manual')
+            );
+        }
 
         return array_map(
             fn(array $row) => new ContentEntryPresenter(
@@ -108,7 +132,8 @@ class ContentQuery
                 $this->blockRepository,
                 $this->statRepository,
                 $this->taxonomyRepository,
-                $this->fieldValueResolver
+                $this->fieldValueResolver,
+                $this->translationService
             ),
             $rows
         );
@@ -126,6 +151,14 @@ class ContentQuery
 
     public function count(): int
     {
+        if (isset($this->filters['slug'])) {
+            return $this->entryRepository->findBySlugForTheme(
+                (int) $this->contentType['id'],
+                (int) $this->language['id'],
+                $this->filters['slug']
+            ) ? 1 : 0;
+        }
+
         return $this->entryRepository->countForTheme(
             (int) $this->contentType['id'],
             (int) $this->language['id'],
