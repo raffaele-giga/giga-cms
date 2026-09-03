@@ -1,0 +1,6 @@
+# File caricati dagli smoke test (Asset Library) — artefatti usa-e-getta,
+# non hanno senso versionati.
+public/media/*
+!public/media/.gitkeep
+storage/media/*
+!storage/media/.htaccess
