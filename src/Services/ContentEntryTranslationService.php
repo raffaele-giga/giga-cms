@@ -85,13 +85,19 @@ class ContentEntryTranslationService
             $existing ? (int) $existing['id'] : 0
         );
 
+        // SEO (nullable per design: assente qui = usa il fallback calcolato
+        // da getSeoMeta(), non un valore vuoto forzato in colonna).
+        $seoFields = array_intersect_key($data, array_flip([
+            'meta_title', 'meta_description', 'canonical_url', 'og_title', 'og_description', 'og_media_id',
+        ]));
+
         if ($existing) {
             $oldSlug = $existing['slug'];
 
-            $this->translationRepository->update((int) $existing['id'], [
+            $this->translationRepository->update((int) $existing['id'], array_merge([
                 'title' => $title,
                 'slug'  => $slug,
-            ]);
+            ], $seoFields));
 
             if ($slug !== $oldSlug) {
                 $this->redirectService->recordAutomaticRedirect(
@@ -103,13 +109,43 @@ class ContentEntryTranslationService
             return (int) $existing['id'];
         }
 
-        return $this->translationRepository->create([
+        return $this->translationRepository->create(array_merge([
             'entry_id'        => $entryId,
             'content_type_id' => $contentType['id'],
             'language_id'     => $languageId,
             'title'           => $title,
             'slug'            => $slug,
-        ]);
+        ], $seoFields));
+    }
+
+    /**
+     * Vista SEO risolta per (entry, lingua): valori espliciti se
+     * impostati, altrimenti i fallback calcolati (SEO, layer trasversale).
+     * robots combina content_entries.indexable (asse index/noindex, già
+     * esistente) e .follow (asse follow/nofollow, nuovo) in una singola
+     * direttiva — le 3 combinazioni del documento più index,nofollow
+     * (non escluso, solo non citato esplicitamente).
+     */
+    public function getSeoMeta(int $entryId, int $languageId): array
+    {
+        $translation = $this->getByEntryAndLanguage($entryId, $languageId);
+        $entry       = $this->entryService->getById($entryId);
+        $contentType = $this->typeRepository->findById((int) $entry['content_type_id']);
+        $language    = $this->languageRepository->findById($languageId);
+
+        $metaTitle       = $translation['meta_title'] ?: $translation['title'];
+        $metaDescription = $translation['meta_description'];
+
+        return [
+            'meta_title'       => $metaTitle,
+            'meta_description' => $metaDescription,
+            'canonical_url'    => $translation['canonical_url'] ?: $this->buildPermalink($contentType, $language, $translation['slug']),
+            'robots'           => ($entry['indexable'] ? 'index' : 'noindex') . ',' . ($entry['follow'] ? 'follow' : 'nofollow'),
+            'og_title'         => $translation['og_title'] ?: $metaTitle,
+            'og_description'   => $translation['og_description'] ?: $metaDescription,
+            'og_media_id'      => $translation['og_media_id'] !== null ? (int) $translation['og_media_id'] : null,
+            'json_ld_type'     => $contentType['json_ld_type'],
+        ];
     }
 
     public function getPermalink(int $entryId, int $languageId): string

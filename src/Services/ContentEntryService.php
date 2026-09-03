@@ -81,6 +81,7 @@ class ContentEntryService
             'published_until'    => $data['published_until'] ?? null,
             'include_in_archive' => isset($data['include_in_archive']) ? (int) (bool) $data['include_in_archive'] : 1,
             'indexable'          => isset($data['indexable']) ? (int) (bool) $data['indexable'] : 1,
+            'follow'             => isset($data['follow']) ? (int) (bool) $data['follow'] : 1,
             'sort_order'         => (int) ($data['sort_order'] ?? 0),
             'is_featured'        => isset($data['is_featured']) ? (int) (bool) $data['is_featured'] : 0,
             'template'           => $data['template'] ?? null,
@@ -97,6 +98,7 @@ class ContentEntryService
             'published_until',
             'include_in_archive',
             'indexable',
+            'follow',
             'sort_order',
             'is_featured',
             'template',
@@ -105,7 +107,7 @@ class ContentEntryService
         // PDO castiga i bool PHP a stringa prima del bind ((string) false === ''),
         // che MariaDB in strict mode rifiuta su una colonna BOOLEAN/TINYINT:
         // cast esplicito a 1/0, stesso pattern già in uso in UserRepository.
-        foreach (['include_in_archive', 'indexable', 'is_featured'] as $boolField) {
+        foreach (['include_in_archive', 'indexable', 'follow', 'is_featured'] as $boolField) {
             if (array_key_exists($boolField, $fields)) {
                 $fields[$boolField] = (int) (bool) $fields[$boolField];
             }

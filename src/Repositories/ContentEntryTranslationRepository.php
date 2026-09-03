@@ -69,7 +69,19 @@ class ContentEntryTranslationRepository
 
     private function filterFields(array $data): array
     {
-        $allowed = ['entry_id', 'content_type_id', 'language_id', 'title', 'slug'];
+        $allowed = [
+            'entry_id',
+            'content_type_id',
+            'language_id',
+            'title',
+            'slug',
+            'meta_title',
+            'meta_description',
+            'canonical_url',
+            'og_title',
+            'og_description',
+            'og_media_id',
+        ];
         return array_filter($data, fn($key) => in_array($key, $allowed), ARRAY_FILTER_USE_KEY);
     }
 }

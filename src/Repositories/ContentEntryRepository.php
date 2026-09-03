@@ -291,6 +291,7 @@ class ContentEntryRepository
             'published_until',
             'include_in_archive',
             'indexable',
+            'follow',
             'sort_order',
             'is_featured',
             'template',
