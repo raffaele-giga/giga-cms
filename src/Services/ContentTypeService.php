@@ -88,6 +88,7 @@ class ContentTypeService
                 'supports_seo'       => (int) (bool) ($data['supports_seo'] ?? false),
                 'supports_media'     => (int) (bool) ($data['supports_media'] ?? false),
                 'supports_featured'  => (int) (bool) ($data['supports_featured'] ?? false),
+                'supports_stats'     => (int) (bool) ($data['supports_stats'] ?? false),
                 'default_ordering'   => $data['default_ordering'] ?? 'created_at',
                 'template'           => $template,
                 'template_options'   => $templateOptions !== null ? json_encode($templateOptions) : null,
@@ -117,6 +118,7 @@ class ContentTypeService
             'supports_seo',
             'supports_media',
             'supports_featured',
+            'supports_stats',
             'default_ordering',
             'template',
             'permalink_pattern',
@@ -128,7 +130,7 @@ class ContentTypeService
             'admin_enabled',
         ]));
 
-        foreach (['supports_archive', 'supports_seo', 'supports_media', 'supports_featured', 'include_in_sitemap', 'admin_enabled'] as $boolField) {
+        foreach (['supports_archive', 'supports_seo', 'supports_media', 'supports_featured', 'supports_stats', 'include_in_sitemap', 'admin_enabled'] as $boolField) {
             if (array_key_exists($boolField, $fields)) {
                 $fields[$boolField] = (int) (bool) $fields[$boolField];
             }

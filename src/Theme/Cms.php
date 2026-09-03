@@ -5,6 +5,7 @@ namespace Giga\Cms\Theme;
 use Giga\Cms\Repositories\ContentTypeRepository;
 use Giga\Cms\Repositories\ContentEntryRepository;
 use Giga\Cms\Repositories\ContentEntryBlockRepository;
+use Giga\Cms\Repositories\ContentEntryStatRepository;
 use Giga\Cms\Repositories\FieldRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
 use Giga\Cms\Repositories\TaxonomyTermRepository;
@@ -31,6 +32,7 @@ class Cms
     private ContentTypeRepository $typeRepository;
     private ContentEntryRepository $entryRepository;
     private ContentEntryBlockRepository $blockRepository;
+    private ContentEntryStatRepository $statRepository;
     private TaxonomyRepository $taxonomyRepository;
     private TaxonomyTermRepository $termRepository;
     private LanguageRepository $languageRepository;
@@ -44,6 +46,7 @@ class Cms
         $this->typeRepository     = new ContentTypeRepository();
         $this->entryRepository    = new ContentEntryRepository();
         $this->blockRepository    = new ContentEntryBlockRepository();
+        $this->statRepository     = new ContentEntryStatRepository();
         $this->taxonomyRepository = new TaxonomyRepository();
         $this->termRepository     = new TaxonomyTermRepository();
         $this->languageRepository = new LanguageRepository();
@@ -69,11 +72,38 @@ class Cms
             $this->defaultLanguage(),
             $this->entryRepository,
             $this->blockRepository,
+            $this->statRepository,
             $this->taxonomyRepository,
             $this->termRepository,
             $this->languageRepository,
             $this->fieldValueResolver
         );
+    }
+
+    /**
+     * Unico punto di scrittura raggiungibile dal tema (Content Type
+     * supports_stats): registra una visualizzazione pubblica. Nessuna
+     * riga viene scritta per un'entry il cui Content Type ha
+     * supports_stats=false — nessun accumulo di dati non voluto per i
+     * tipi che non lo richiedono (es. "Team").
+     *
+     * Deliberatamente silenzioso (non lancia eccezioni) se l'entry non
+     * esiste o il Content Type non supporta le statistiche: una
+     * visualizzazione di pagina pubblica non deve mai fallire per questo.
+     */
+    public function recordView(int $entryId): void
+    {
+        $entry = $this->entryRepository->findById($entryId);
+        if (!$entry) {
+            return;
+        }
+
+        $contentType = $this->typeRepository->findById((int) $entry['content_type_id']);
+        if (!$contentType || !$contentType['supports_stats']) {
+            return;
+        }
+
+        $this->statRepository->recordView($entryId);
     }
 
     /**

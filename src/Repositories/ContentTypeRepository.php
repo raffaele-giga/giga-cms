@@ -146,6 +146,7 @@ class ContentTypeRepository
             'supports_seo',
             'supports_media',
             'supports_featured',
+            'supports_stats',
             'default_ordering',
             'template',
             'template_options',

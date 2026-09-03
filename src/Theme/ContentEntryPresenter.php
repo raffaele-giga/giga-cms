@@ -4,6 +4,7 @@ namespace Giga\Cms\Theme;
 
 use Giga\Cms\Repositories\ContentEntryRepository;
 use Giga\Cms\Repositories\ContentEntryBlockRepository;
+use Giga\Cms\Repositories\ContentEntryStatRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
 
 /**
@@ -29,6 +30,7 @@ class ContentEntryPresenter
         private array $language,
         private ContentEntryRepository $entryRepository,
         private ContentEntryBlockRepository $blockRepository,
+        private ContentEntryStatRepository $statRepository,
         private TaxonomyRepository $taxonomyRepository,
         private FieldValueResolver $fieldValueResolver
     ) {
@@ -63,6 +65,12 @@ class ContentEntryPresenter
             fn(array $term) => ['slug' => $term['slug'], 'label' => $term['label']],
             $terms
         );
+    }
+
+    /** Statistiche di lettura pubblica (Content Type supports_stats). */
+    public function stats(): ContentEntryStatsPresenter
+    {
+        return new ContentEntryStatsPresenter($this->statRepository->find((int) $this->row['id']));
     }
 
     /**

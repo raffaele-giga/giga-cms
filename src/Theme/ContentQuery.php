@@ -4,6 +4,7 @@ namespace Giga\Cms\Theme;
 
 use Giga\Cms\Repositories\ContentEntryRepository;
 use Giga\Cms\Repositories\ContentEntryBlockRepository;
+use Giga\Cms\Repositories\ContentEntryStatRepository;
 use Giga\Cms\Repositories\TaxonomyRepository;
 use Giga\Cms\Repositories\TaxonomyTermRepository;
 use Giga\Cms\Repositories\LanguageRepository;
@@ -29,6 +30,7 @@ class ContentQuery
         private array $language,
         private ContentEntryRepository $entryRepository,
         private ContentEntryBlockRepository $blockRepository,
+        private ContentEntryStatRepository $statRepository,
         private TaxonomyRepository $taxonomyRepository,
         private TaxonomyTermRepository $termRepository,
         private LanguageRepository $languageRepository,
@@ -104,6 +106,7 @@ class ContentQuery
                 $this->language,
                 $this->entryRepository,
                 $this->blockRepository,
+                $this->statRepository,
                 $this->taxonomyRepository,
                 $this->fieldValueResolver
             ),
