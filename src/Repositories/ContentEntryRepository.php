@@ -314,7 +314,62 @@ class ContentEntryRepository
         if (!empty($filters['effectively_public'])) {
             $conditions[] = $this->effectivePublicCondition();
         }
+        // array_key_exists, non !empty: un term_id di 0 (sentinella "nessun
+        // termine simile trovato", usata da ContentQuery::taxonomy() per un
+        // termine inesistente) deve filtrare a zero risultati, non essere
+        // trattato come "filtro assente" — 0 è falsy per empty() ma è un
+        // valore di filtro legittimo qui.
+        if (array_key_exists('term_id', $filters)) {
+            $conditions[] = 'e.id IN (SELECT entry_id FROM content_entry_terms WHERE term_id = ?)';
+            $params[]     = (int) $filters['term_id'];
+        }
 
         return ['WHERE ' . implode(' AND ', $conditions), $params];
+    }
+
+    /**
+     * Vista per il Contratto Theme↔CMS (Decisione #3): stessa costruzione
+     * dei filtri di findPaginated/countAll (buildWhere, riusata) ma con
+     * INNER JOIN su content_entry_translations per la lingua richiesta —
+     * un'entry senza traduzione in quella lingua non esiste per il tema,
+     * mai un fallback su un'altra lingua (Policy contenuto incompleto V1).
+     * L'admin (findPaginated) non usa questo JOIN: un'entry senza ancora
+     * nessuna traduzione deve restare visibile in admin per poterne
+     * aggiungere una.
+     */
+    public function findForTheme(int $contentTypeId, int $languageId, array $filters, int $page, int $perPage): array
+    {
+        [$where, $whereParams] = $this->buildWhere($contentTypeId, $filters);
+        $offset = ($page - 1) * $perPage;
+
+        return $this->db->fetchAll(
+            "SELECT e.*,
+                    cs.system_key AS status_key, cs.is_public AS status_is_public,
+                    t.title, t.slug, t.meta_title, t.meta_description, t.canonical_url,
+                    t.og_title, t.og_description, t.og_media_id
+             FROM content_entries e
+             JOIN content_statuses cs ON cs.id = e.status_id
+             JOIN content_entry_translations t ON t.entry_id = e.id AND t.language_id = ?
+             {$where}
+             ORDER BY e.sort_order ASC, e.created_at DESC
+             LIMIT ? OFFSET ?",
+            [$languageId, ...$whereParams, $perPage, $offset]
+        );
+    }
+
+    public function countForTheme(int $contentTypeId, int $languageId, array $filters): int
+    {
+        [$where, $whereParams] = $this->buildWhere($contentTypeId, $filters);
+
+        $row = $this->db->fetchOne(
+            "SELECT COUNT(*) AS total
+             FROM content_entries e
+             JOIN content_statuses cs ON cs.id = e.status_id
+             JOIN content_entry_translations t ON t.entry_id = e.id AND t.language_id = ?
+             {$where}",
+            [$languageId, ...$whereParams]
+        );
+
+        return (int) ($row['total'] ?? 0);
     }
 }
