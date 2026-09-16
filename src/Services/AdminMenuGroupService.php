@@ -71,4 +71,25 @@ class AdminMenuGroupService
             [$sortOrder, $id]
         );
     }
+
+    /** true se almeno un Content Type ha admin_menu = $label. */
+    public function isInUse(string $label): bool
+    {
+        $row = $this->db->fetchOne(
+            "SELECT COUNT(*) AS total FROM content_types WHERE admin_menu = ?",
+            [$label]
+        );
+        return (int) ($row['total'] ?? 0) > 0;
+    }
+
+    /**
+     * DELETE semplice, nessun controllo "è in uso" qui — sta al chiamante
+     * (controller) verificarlo con isInUse() prima di invocare questo
+     * metodo, stesso principio già seguito altrove in questa sessione: il
+     * Service esegue, il controller decide.
+     */
+    public function delete(int $id): void
+    {
+        $this->db->execute("DELETE FROM admin_menu_groups WHERE id = ?", [$id]);
+    }
 }

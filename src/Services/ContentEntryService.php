@@ -52,7 +52,7 @@ class ContentEntryService
         return $entry;
     }
 
-    public function getPaginated(int $contentTypeId, int $page, int $perPage, array $filters = []): array
+    public function getPaginated(int $contentTypeId, int $page, int $perPage, array $filters = [], ?int $labelFieldId = null): array
     {
         $page    = max(1, $page);
         $perPage = in_array($perPage, [10, 15, 25, 50]) ? $perPage : 15;
@@ -60,7 +60,7 @@ class ContentEntryService
         $total      = $this->entryRepository->countAll($contentTypeId, $filters);
         $totalPages = $total > 0 ? (int) ceil($total / $perPage) : 1;
         $page       = min($page, $totalPages);
-        $entries    = $this->entryRepository->findPaginated($contentTypeId, $page, $perPage, $filters);
+        $entries    = $this->entryRepository->findPaginated($contentTypeId, $page, $perPage, $filters, $labelFieldId);
 
         return [
             'entries'    => $entries,

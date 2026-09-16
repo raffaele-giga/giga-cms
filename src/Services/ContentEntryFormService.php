@@ -318,6 +318,25 @@ class ContentEntryFormService
         return $options;
     }
 
+    /**
+     * Id del field 'text' da usare come nome rappresentativo delle entry
+     * di questo Content Type nelle liste admin (content-entries/index.php)
+     * — stessa logica già usata per le opzioni Relation
+     * (resolveRelationOptions()), qui applicata al Content Type stesso
+     * invece che a un target di relazione: resolveLabelField() era già
+     * generico (accetta un contentTypeId, non uno specifico a "relation
+     * target"), nessun refactor necessario, solo un ingresso pubblico in
+     * più. Da chiamare una sola volta per request (non per riga), il
+     * chiamante tipico è ContentEntryController::index().
+     */
+    public function resolveLabelFieldId(string $typeSlug): ?int
+    {
+        $contentType = $this->typeService->getBySlug($typeSlug);
+        $labelField  = $this->resolveLabelField((int) $contentType['id']);
+
+        return $labelField !== null ? (int) $labelField['id'] : null;
+    }
+
     /** Primo field di tipo 'text' trovato nei Field Group del content type, o null se nessuno esiste. */
     private function resolveLabelField(int $contentTypeId): ?array
     {

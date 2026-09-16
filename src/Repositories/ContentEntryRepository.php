@@ -45,22 +45,48 @@ class ContentEntryRepository
         );
     }
 
-    public function findPaginated(int $contentTypeId, int $page, int $perPage, array $filters = []): array
+    /**
+     * $labelFieldId: se presente, aggiunge una colonna entry_label col
+     * valore del field 'text' indicato (nome rappresentativo per le liste
+     * admin — vedi ContentEntryFormService::resolveLabelFieldId()).
+     *
+     * Sottoquery correlata, non una LEFT JOIN diretta su
+     * content_entry_values: quella tabella non ha un vincolo di unicità
+     * su (entry_id, field_id) — un field translatable ha una riga per
+     * lingua (language_id valorizzato, vedi migration
+     * add_language_to_content_entry_values) — una JOIN diretta
+     * duplicherebbe la riga di content_entries per ogni riga di valore
+     * corrispondente, rompendo silenziosamente la paginazione. La
+     * sottoquery filtra language_id IS NULL (valore condiviso/non
+     * traducibile, il caso comune per un field usato come label) e
+     * restituisce al più una riga per costruzione.
+     */
+    public function findPaginated(int $contentTypeId, int $page, int $perPage, array $filters = [], ?int $labelFieldId = null): array
     {
         [$where, $params] = $this->buildWhere($contentTypeId, $filters);
-        $offset   = ($page - 1) * $perPage;
-        $params[] = $perPage;
-        $params[] = $offset;
+        $offset = ($page - 1) * $perPage;
+
+        $labelSelect = '';
+        $labelParams = [];
+        if ($labelFieldId !== null) {
+            $labelSelect = ",\n                    (SELECT cev.value_text FROM content_entry_values cev
+                        WHERE cev.entry_id = e.id AND cev.field_id = ? AND cev.language_id IS NULL
+                        ORDER BY cev.sort_order ASC LIMIT 1) AS entry_label";
+            $labelParams = [$labelFieldId];
+        }
+
+        $allParams   = array_merge($labelParams, $params, [$perPage, $offset]);
 
         return $this->db->fetchAll(
             "SELECT e.*,
                     cs.system_key AS status_key, cs.label AS status_label, cs.is_public AS status_is_public
+                    {$labelSelect}
              FROM content_entries e
              JOIN content_statuses cs ON cs.id = e.status_id
              {$where}
              ORDER BY e.sort_order ASC, e.created_at DESC
              LIMIT ? OFFSET ?",
-            $params
+            $allParams
         );
     }
 

@@ -7,11 +7,18 @@
  *
  * @var array $contentTypes  da ContentTypeService::getAllForAdmin() — TUTTI,
  *                            inclusi i disabilitati
- * @var array $menuGroups    da AdminMenuGroupService::getAll()
+ * @var array $menuGroups    da AdminMenuGroupService::getAll(), con 'in_use'
+ *                            (bool) aggiunto dal controller per ogni riga
  * @var array $ui
  */
 $csrf = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8');
 ?>
+
+<datalist id="menu-groups">
+    <?php foreach ($menuGroups as $group): ?>
+        <option value="<?= htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8') ?>">
+    <?php endforeach; ?>
+</datalist>
 
 <div class="mb-6">
     <h1 class="<?= $ui['page_title'] ?>">Gestione contenuti</h1>
@@ -27,38 +34,36 @@ $csrf = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8');
                     <th class="<?= $ui['th'] ?>">Slug</th>
                     <th class="<?= $ui['th'] ?>">Stato</th>
                     <th class="<?= $ui['th'] ?>">Gruppo menu / Ordine</th>
-                    <th class="<?= $ui['th_right'] ?>">Azioni</th>
                 </tr>
             </thead>
             <tbody class="<?= $ui['tbody'] ?>">
                 <?php if (empty($contentTypes)): ?>
-                    <tr><td colspan="5" class="<?= $ui['td'] ?>">Nessun Content Type installato.</td></tr>
+                    <tr><td colspan="4" class="<?= $ui['td'] ?>">Nessun Content Type installato.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($contentTypes as $type): ?>
                     <tr class="<?= $ui['tr'] ?>">
-                        <td class="<?= $ui['td_strong'] ?>"><?= htmlspecialchars($type['label'], ENT_QUOTES, 'UTF-8') ?></td>
+                        <td class="<?= $ui['td_strong'] ?>">
+                            <input type="text" name="label" form="ct-menu-<?= (int) $type['id'] ?>"
+                                value="<?= htmlspecialchars($type['label'], ENT_QUOTES, 'UTF-8') ?>"
+                                class="<?= $ui['filter_input'] ?> w-40">
+                        </td>
                         <td class="<?= $ui['td_mono'] ?>"><?= htmlspecialchars($type['slug'], ENT_QUOTES, 'UTF-8') ?></td>
                         <td class="<?= $ui['td'] ?>">
-                            <span class="<?= $type['admin_enabled'] ? $ui['badge_success'] : $ui['badge_neutral'] ?>">
-                                <?= $type['admin_enabled'] ? 'Attivo' : 'Disattivo' ?>
-                            </span>
+                            <form method="POST" action="<?= BASE_URL ?>/admin/content-types/<?= (int) $type['id'] ?>/toggle">
+                                <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+                                <button type="submit" class="<?= $type['admin_enabled'] ? $ui['badge_success'] : $ui['badge_neutral'] ?> cursor-pointer">
+                                    <?= $type['admin_enabled'] ? 'Attivo' : 'Disattivo' ?>
+                                </button>
+                            </form>
                         </td>
                         <td class="<?= $ui['td'] ?>">
-                            <form method="POST" action="<?= BASE_URL ?>/admin/content-types/<?= (int) $type['id'] ?>/menu" class="flex items-center gap-2">
+                            <form id="ct-menu-<?= (int) $type['id'] ?>" method="POST" action="<?= BASE_URL ?>/admin/content-types/<?= (int) $type['id'] ?>/menu" class="flex items-center gap-2">
                                 <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
-                                <input type="text" name="admin_menu" value="<?= htmlspecialchars((string) ($type['admin_menu'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                <input type="text" name="admin_menu" list="menu-groups" value="<?= htmlspecialchars((string) ($type['admin_menu'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                     placeholder="Gruppo (es. Contenuti)" class="<?= $ui['filter_input'] ?> w-40">
                                 <input type="number" name="admin_order" value="<?= (int) $type['admin_order'] ?>"
                                     class="<?= $ui['filter_input'] ?> w-20" title="Ordine nel gruppo">
                                 <button type="submit" class="<?= $ui['btn_ghost_sm'] ?>">Salva</button>
-                            </form>
-                        </td>
-                        <td class="<?= $ui['td'] ?> text-right">
-                            <form method="POST" action="<?= BASE_URL ?>/admin/content-types/<?= (int) $type['id'] ?>/toggle">
-                                <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
-                                <button type="submit" class="<?= $type['admin_enabled'] ? $ui['btn_danger_soft'] : $ui['btn_primary_soft'] ?>">
-                                    <?= $type['admin_enabled'] ? 'Disattiva' : 'Attiva' ?>
-                                </button>
                             </form>
                         </td>
                     </tr>
@@ -80,11 +85,12 @@ $csrf = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8');
                 <tr class="<?= $ui['thead_row'] ?>">
                     <th class="<?= $ui['th'] ?>">Gruppo</th>
                     <th class="<?= $ui['th'] ?>">Ordine</th>
+                    <th class="<?= $ui['th_right'] ?>">Azioni</th>
                 </tr>
             </thead>
             <tbody class="<?= $ui['tbody'] ?>">
                 <?php if (empty($menuGroups)): ?>
-                    <tr><td colspan="2" class="<?= $ui['td'] ?>">Nessun gruppo ancora — creato automaticamente al primo salvataggio di un Content Type con un nome gruppo.</td></tr>
+                    <tr><td colspan="3" class="<?= $ui['td'] ?>">Nessun gruppo ancora — creato automaticamente al primo salvataggio di un Content Type con un nome gruppo.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($menuGroups as $group): ?>
                     <tr class="<?= $ui['tr'] ?>">
@@ -95,6 +101,20 @@ $csrf = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8');
                                 <input type="number" name="sort_order" value="<?= (int) $group['sort_order'] ?>" class="<?= $ui['filter_input'] ?> w-20">
                                 <button type="submit" class="<?= $ui['btn_ghost_sm'] ?>">Salva</button>
                             </form>
+                        </td>
+                        <td class="<?= $ui['td'] ?> text-right">
+                            <?php if ($group['in_use']): ?>
+                                <!-- Badge invece di un pulsante disabilitato: coerente col
+                                     linguaggio visivo già usato per lo Stato dei Content
+                                     Type (span badge_*), comunica lo stato senza dare
+                                     l'impressione di un'azione cliccabile ma inattiva. -->
+                                <span class="<?= $ui['badge_neutral'] ?>">In uso</span>
+                            <?php else: ?>
+                                <form method="POST" action="<?= BASE_URL ?>/admin/menu-groups/<?= (int) $group['id'] ?>/delete">
+                                    <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+                                    <button type="submit" class="<?= $ui['btn_danger_soft'] ?>">Elimina</button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
