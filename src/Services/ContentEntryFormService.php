@@ -82,6 +82,17 @@ class ContentEntryFormService
             throw new \RuntimeException("Content Type '{$typeSlug}' non trovato.", previous: $e);
         }
 
+        // Enforcement qui, non dentro getBySlug(): quel metodo deve restare
+        // neutro (la UI di gestione /admin/content-types lo usa anche per i
+        // Content Type disabilitati, per poterli riattivare). loadSchema() è
+        // l'unico punto di ingresso condiviso da tutti i metodi di
+        // ContentEntryController (index/create/store/edit/update, verificato
+        // in audit precedente) — un controllo qui basta a bloccare l'accesso
+        // via URL diretto senza doverlo duplicare altrove.
+        if ((int) $contentType['admin_enabled'] !== 1) {
+            throw new \RuntimeException("Content Type '{$typeSlug}' non è abilitato.");
+        }
+
         $relationOptionsByTarget = [];
         $fieldGroups = [];
 

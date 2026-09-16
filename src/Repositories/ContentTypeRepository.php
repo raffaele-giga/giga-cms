@@ -43,6 +43,14 @@ class ContentTypeRepository
         );
     }
 
+    /** Come findAllForAdminMenu(), ma senza il filtro admin_enabled — per la UI di gestione. */
+    public function findAllForAdmin(): array
+    {
+        return $this->db->fetchAll(
+            "SELECT * FROM content_types ORDER BY admin_order ASC, label ASC"
+        );
+    }
+
     public function slugExists(string $slug, int $excludeId = 0): bool
     {
         $row = $this->db->fetchOne(

@@ -66,6 +66,21 @@ class ContentTypeService
         return $this->decodeTemplateOptions($type);
     }
 
+    /**
+     * TUTTI i Content Type (abilitati e disabilitati), per la UI di
+     * gestione /admin/content-types — a differenza di
+     * getAllForAdminMenu(), che filtra admin_enabled=1 per popolare la
+     * sidebar reale: qui serve poter vedere ed eventualmente riattivare
+     * anche quelli spenti.
+     */
+    public function getAllForAdmin(): array
+    {
+        return array_map(
+            $this->decodeTemplateOptions(...),
+            $this->typeRepository->findAllForAdmin()
+        );
+    }
+
     public function getAllForAdminMenu(): array
     {
         return $this->typeRepository->findAllForAdminMenu();
