@@ -53,4 +53,20 @@ interface FieldTypeInterface
      * (operazione inversa di persist()), per il consumo lato tema/admin.
      */
     public function render(array $valueRow, array $fieldConfig): mixed;
+
+    /**
+     * Produce SOLO l'elemento di input grezzo (<input>/<select>/<textarea>)
+     * per l'editing in admin — mai un wrapper: niente <label>, niente box
+     * di errore, niente help text. Quello è responsabilità della view/
+     * partial chiamante (decisione di design), non di questo metodo.
+     *
+     * name/id dell'elemento devono sempre coincidere con
+     * $context->name/$context->id, mai inventati dall'implementazione.
+     * Ogni valore stampato che deriva da $context->value o da $fieldConfig
+     * (es. le option label di una select) va escapato esplicitamente — non
+     * fidarsi di alcun escaping a monte.
+     *
+     * @throws \LogicException se il tipo non ha ancora un'implementazione
+     */
+    public function renderInput(FieldInputContext $context, array $fieldConfig): string;
 }

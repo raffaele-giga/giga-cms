@@ -42,4 +42,29 @@ class MediaFieldType implements FieldTypeInterface
     {
         return $valueRow['value_media_id'] !== null ? (int) $valueRow['value_media_id'] : null;
     }
+
+    /**
+     * Minimo per ora: solo l'hidden con l'id media corrente, più un testo
+     * di stato — NON un vero file-picker (browser dell'Asset Library:
+     * ricerca/anteprima/upload). Costruire quel picker è lavoro separato,
+     * fuori scope qui — non bloccante per verificare il resto del motore
+     * di renderInput() sugli altri 7 tipi. L'eccezione all'invariante
+     * "solo l'elemento di input grezzo" (qui c'è anche uno <span> di testo)
+     * è deliberata: senza un indicatore visivo minimo l'input hidden
+     * sarebbe invisibile e la sua assenza di funzionalità reale
+     * silenziosa, contro lo spirito "nessun fallback silenzioso".
+     */
+    public function renderInput(FieldInputContext $context, array $fieldConfig): string
+    {
+        $value = htmlspecialchars((string) ($context->value ?? ''), ENT_QUOTES, 'UTF-8');
+        $name  = htmlspecialchars($context->name, ENT_QUOTES, 'UTF-8');
+        $id    = htmlspecialchars($context->id, ENT_QUOTES, 'UTF-8');
+
+        $status = $context->value !== null
+            ? 'media id corrente: ' . htmlspecialchars((string) $context->value, ENT_QUOTES, 'UTF-8')
+            : 'nessun media selezionato';
+
+        return "<input type=\"hidden\" name=\"{$name}\" id=\"{$id}\" value=\"{$value}\">"
+            . "<span data-field-type=\"media-placeholder\">File-picker non ancora implementato (Asset Library) — {$status}</span>";
+    }
 }

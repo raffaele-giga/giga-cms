@@ -40,4 +40,48 @@ class RelationFieldType implements FieldTypeInterface
     {
         return $valueRow['value_entry_id'] !== null ? (int) $valueRow['value_entry_id'] : null;
     }
+
+    /**
+     * Riceve le opzioni già risolte, non le risolve da sé: coerente con
+     * l'invariante "nessuna dipendenza da Database" di FieldTypeInterface
+     * (violata da una prima versione di questo metodo che interrogava
+     * ContentTypeService/ContentEntryService direttamente — corretto qui,
+     * Opzione B). Chi chiama renderInput() (in futuro
+     * ContentEntryFormService, non ancora scritto) è responsabile di
+     * popolare $fieldConfig['relation_options'] con una query una tantum
+     * per tutti i field Relation di un Content Type, non una per campo.
+     *
+     * $fieldConfig['relation_options']: array di ['id' => int, 'label' =>
+     * string] — la label è già risolta dal chiamante (es. dal campo
+     * 'title'/'name' dell'entry target), niente più il placeholder "#{id}"
+     * della versione precedente.
+     *
+     * Nessuna opzione disponibile è uno stato legittimo (es. il content
+     * type target non ha ancora entry) — non un errore di configurazione:
+     * niente eccezione, si renderizza una <select> con una sola opzione
+     * disabilitata.
+     */
+    public function renderInput(FieldInputContext $context, array $fieldConfig): string
+    {
+        $options = $fieldConfig['relation_options'] ?? [];
+
+        $name = htmlspecialchars($context->name, ENT_QUOTES, 'UTF-8');
+        $id   = htmlspecialchars($context->id, ENT_QUOTES, 'UTF-8');
+
+        if ($options === []) {
+            return "<select name=\"{$name}\" id=\"{$id}\"><option value=\"\" disabled selected>Nessuna opzione disponibile</option></select>";
+        }
+
+        $html = "<select name=\"{$name}\" id=\"{$id}\">";
+        $html .= '<option value="">— nessuna selezione —</option>';
+        foreach ($options as $option) {
+            $optionId    = (int) $option['id'];
+            $optionLabel = htmlspecialchars((string) $option['label'], ENT_QUOTES, 'UTF-8');
+            $selected    = $context->value !== null && (int) $context->value === $optionId ? ' selected' : '';
+            $html .= "<option value=\"{$optionId}\"{$selected}>{$optionLabel}</option>";
+        }
+        $html .= '</select>';
+
+        return $html;
+    }
 }

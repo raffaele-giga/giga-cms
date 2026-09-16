@@ -37,4 +37,20 @@ class RichTextFieldType implements FieldTypeInterface
     {
         return $valueRow['value_text'] ?? null;
     }
+
+    /**
+     * Semplice <textarea> — nessun editor rich text integrato (vedi
+     * docblock di classe: nessun sanitizzatore HTML ancora presente in
+     * giga-cms). Il contenuto HTML grezzo va nel body del textarea, non
+     * nell'attributo value: htmlspecialchars() qui evita che un valore già
+     * contenente HTML chiuda prematuramente il tag.
+     */
+    public function renderInput(FieldInputContext $context, array $fieldConfig): string
+    {
+        $value = htmlspecialchars((string) ($context->value ?? ''), ENT_QUOTES, 'UTF-8');
+        $name  = htmlspecialchars($context->name, ENT_QUOTES, 'UTF-8');
+        $id    = htmlspecialchars($context->id, ENT_QUOTES, 'UTF-8');
+
+        return "<textarea name=\"{$name}\" id=\"{$id}\">{$value}</textarea>";
+    }
 }

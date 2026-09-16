@@ -85,4 +85,10 @@ class LinkFieldType implements FieldTypeInterface
 
         return ['kind' => $kind, 'value' => $value];
     }
+
+    /** Non ancora usato da nessun Content Type reale — fallisce esplicitamente invece di un fallback silenzioso. */
+    public function renderInput(FieldInputContext $context, array $fieldConfig): string
+    {
+        throw new \LogicException('renderInput non ancora implementato per link');
+    }
 }

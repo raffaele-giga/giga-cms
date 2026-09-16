@@ -37,4 +37,16 @@ class NumberFieldType implements FieldTypeInterface
     {
         return $valueRow['value_number'] !== null ? (float) $valueRow['value_number'] : null;
     }
+
+    public function renderInput(FieldInputContext $context, array $fieldConfig): string
+    {
+        $value = htmlspecialchars((string) ($context->value ?? ''), ENT_QUOTES, 'UTF-8');
+        $name  = htmlspecialchars($context->name, ENT_QUOTES, 'UTF-8');
+        $id    = htmlspecialchars($context->id, ENT_QUOTES, 'UTF-8');
+
+        $minAttr = isset($fieldConfig['min']) ? ' min="' . htmlspecialchars((string) $fieldConfig['min'], ENT_QUOTES, 'UTF-8') . '"' : '';
+        $maxAttr = isset($fieldConfig['max']) ? ' max="' . htmlspecialchars((string) $fieldConfig['max'], ENT_QUOTES, 'UTF-8') . '"' : '';
+
+        return "<input type=\"number\" name=\"{$name}\" id=\"{$id}\" value=\"{$value}\"{$minAttr}{$maxAttr} step=\"any\">";
+    }
 }
