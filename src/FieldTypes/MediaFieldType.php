@@ -53,6 +53,13 @@ class MediaFieldType implements FieldTypeInterface
      * è deliberata: senza un indicatore visivo minimo l'input hidden
      * sarebbe invisibile e la sua assenza di funzionalità reale
      * silenziosa, contro lo spirito "nessun fallback silenzioso".
+     *
+     * Nessuna classe $ui qui: l'unico elemento realmente input è
+     * type="hidden" (mai visibile, una classe non avrebbe alcun effetto —
+     * stesso trattamento di ogni altro hidden nel sistema, es. csrf_token,
+     * mai classato in nessuna view). Lo <span> di stato è testo informativo,
+     * non un input — nessun token $ui esistente lo copre e non ne invento
+     * uno nuovo (stesso principio "segnala, non inventare" applicato qui).
      */
     public function renderInput(FieldInputContext $context, array $fieldConfig): string
     {

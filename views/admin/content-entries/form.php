@@ -31,16 +31,29 @@ use Giga\Cms\FieldTypes\FieldInputContext;
 $fieldViewRenderer = new ViewRenderer(ViewResolver::forPackage(ROOT_PATH . '/views/admin-shell'));
 ?>
 
-<form method="POST" action="<?= htmlspecialchars($formAction, ENT_QUOTES, 'UTF-8') ?>" class="<?= $ui['card_padded'] ?> space-y-4">
+<div class="<?= $ui['card_padded'] ?>">
+<form method="POST" action="<?= htmlspecialchars($formAction, ENT_QUOTES, 'UTF-8') ?>" class="space-y-4">
     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
     <?php if (!empty($errors['_general'])): ?>
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg px-4 py-3 text-sm">
+        <div class="bg-danger-soft border border-danger-border text-danger-text rounded-lg px-4 py-3 text-sm">
             <?= htmlspecialchars($errors['_general'], ENT_QUOTES, 'UTF-8') ?>
         </div>
     <?php endif; ?>
 
-    <?php foreach ($schema['field_groups'] as $group): ?>
+    <?php $multipleGroups = count($schema['field_groups']) > 1; ?>
+    <?php foreach ($schema['field_groups'] as $groupIndex => $group): ?>
+        <?php if ($multipleGroups): ?>
+            <?php if ($groupIndex > 0): ?>
+                <div class="border-t border-gray-100 dark:border-gray-700 pt-5 mt-5">
+            <?php endif; ?>
+            <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+                <?= htmlspecialchars($group['group']['label'], ENT_QUOTES, 'UTF-8') ?>
+            </p>
+            <?php if ($groupIndex > 0): ?>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
         <?php foreach ($group['fields'] as $entryField): ?>
             <?php
             $field    = $entryField['field'];
@@ -75,7 +88,11 @@ $fieldViewRenderer = new ViewRenderer(ViewResolver::forPackage(ROOT_PATH . '/vie
     <?php endforeach; ?>
 
     <div class="<?= $ui['form_actions'] ?>">
+        <button type="submit" class="<?= $ui['btn_primary'] ?>">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <?= $entryId === null ? 'Crea' : 'Salva' ?>
+        </button>
         <a href="<?= BASE_URL ?>/admin/content/<?= htmlspecialchars($typeSlug, ENT_QUOTES, 'UTF-8') ?>" class="<?= $ui['btn_ghost'] ?>">Annulla</a>
-        <button type="submit" class="<?= $ui['btn_primary'] ?>"><?= $entryId === null ? 'Crea' : 'Salva' ?></button>
     </div>
 </form>
+</div>

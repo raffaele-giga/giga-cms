@@ -68,11 +68,15 @@ class RelationFieldType implements FieldTypeInterface
         $name = htmlspecialchars($context->name, ENT_QUOTES, 'UTF-8');
         $id   = htmlspecialchars($context->id, ENT_QUOTES, 'UTF-8');
 
+        // Classe hardcoded, stesso valore letterale di $ui['select'] — vedi
+        // il commento in TextFieldType::renderInput() per il motivo.
+        $class = 'appearance-none rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 pr-10 text-sm text-gray-700 dark:text-gray-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-gray-300 dark:hover:border-gray-600 transition-colors w-full';
+
         if ($options === []) {
-            return "<select name=\"{$name}\" id=\"{$id}\"><option value=\"\" disabled selected>Nessuna opzione disponibile</option></select>";
+            return "<select name=\"{$name}\" id=\"{$id}\" class=\"{$class}\"><option value=\"\" disabled selected>Nessuna opzione disponibile</option></select>";
         }
 
-        $html = "<select name=\"{$name}\" id=\"{$id}\">";
+        $html = "<select name=\"{$name}\" id=\"{$id}\" class=\"{$class}\">";
         $html .= '<option value="">— nessuna selezione —</option>';
         foreach ($options as $option) {
             $optionId    = (int) $option['id'];
